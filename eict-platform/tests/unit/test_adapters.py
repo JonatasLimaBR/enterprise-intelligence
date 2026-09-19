@@ -257,3 +257,16 @@ def test_narrator_failure_is_swallowed_into_error():
 
     assert response.content is None
     assert response.error == "ConnectionError"
+
+
+def test_public_repo_works_without_token():
+    client = GitHubClient(repo="acme/demo")
+
+    assert "Authorization" not in client.headers()
+    assert client.headers()["Accept"] == "application/vnd.github+json"
+
+
+def test_token_is_sent_when_configured():
+    client = GitHubClient(repo="acme/demo", token="ghp_example")
+
+    assert client.headers()["Authorization"] == "Bearer ghp_example"

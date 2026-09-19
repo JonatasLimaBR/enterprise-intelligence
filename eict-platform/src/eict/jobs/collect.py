@@ -173,8 +173,8 @@ def _github_client(workspace: Any, settings: Settings) -> GitHubClient | None:
     try:
         token = workspace.dbutils.secrets.get(settings.secret_scope, "github_token")
     except Exception as exc:
-        logger.warning("github token unavailable: %s", exc)
-        return None
+        logger.info("github token unavailable (%s); using unauthenticated access", exc)
+        token = ""
     return GitHubClient(repo=settings.github_repo, token=token)
 
 

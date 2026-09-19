@@ -20,18 +20,21 @@ class GitHubError(RuntimeError):
 @dataclass(frozen=True)
 class GitHubClient:
     repo: str
-    token: str
+    token: str = ""
     session: requests.Session | None = None
     api_root: str = API_ROOT
+
+    def headers(self) -> dict[str, str]:
+        headers = {"Accept": "application/vnd.github+json"}
+        if self.token:
+            headers["Authorization"] = f"Bearer {self.token}"
+        return headers
 
     def commit(self, sha: str) -> Change:
         session = self.session or requests.Session()
         response = session.get(
             f"{self.api_root}/repos/{self.repo}/commits/{sha}",
-            headers={
-                "Authorization": f"Bearer {self.token}",
-                "Accept": "application/vnd.github+json",
-            },
+            headers=self.headers(),
             timeout=TIMEOUT_S,
         )
         if response.status_code != 200:
