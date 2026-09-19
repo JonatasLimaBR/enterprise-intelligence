@@ -1,0 +1,30 @@
+bundle:
+  name: eict-demo-workload
+
+variables:
+  catalog:
+    description: Unity Catalog catalog holding the demo workload
+    default: workspace
+  schema:
+    description: Schema holding orders, customers and sales_daily
+    default: eict_workload
+  landing_dir:
+    description: Volume path where the run profile is landed
+    default: /Volumes/workspace/eict_platform/landing
+  scale:
+    description: Millions of order rows generated for the scenario
+    default: "20"
+  hot_share:
+    description: Share of order rows assigned to the hot customer
+    default: "0.4"
+  warehouse_id:
+    description: SQL warehouse backing the commercial dashboard
+    default: ""
+
+include:
+  - resources/*.yml
+
+targets:
+  dev:
+    mode: development
+    default: true

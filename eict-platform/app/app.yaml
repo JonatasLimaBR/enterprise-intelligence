@@ -1,0 +1,12 @@
+command:
+  - streamlit
+  - run
+  - app.py
+
+env:
+  - name: EICT_CATALOG
+    value: workspace
+  - name: EICT_SCHEMA_PREFIX
+    value: eict_
+  - name: DATABRICKS_WAREHOUSE_ID
+    valueFrom: sql_warehouse

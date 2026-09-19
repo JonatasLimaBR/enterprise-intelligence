@@ -1,0 +1,94 @@
+resources:
+  jobs:
+    eict_cycle:
+      name: eict-cycle-${bundle.target}
+      max_concurrent_runs: 1
+      performance_target: STANDARD
+      schedule:
+        quartz_cron_expression: "0 */5 * * * ?"
+        timezone_id: UTC
+        pause_status: UNPAUSED
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema_prefix
+          default: ${var.schema_prefix}
+        - name: tenant_id
+          default: ${var.tenant_id}
+        - name: landing_dir
+          default: ${var.landing_dir}
+        - name: secret_scope
+          default: ${var.secret_scope}
+        - name: github_repo
+          default: ${var.github_repo}
+        - name: jira_base_url
+          default: ${var.jira_base_url}
+        - name: jira_project
+          default: ${var.jira_project}
+        - name: llm_endpoint
+          default: ${var.llm_endpoint}
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            dependencies:
+              - ./dist/*.whl
+      tasks:
+        - task_key: bootstrap
+          environment_key: default
+          python_wheel_task:
+            package_name: eict
+            entry_point: bootstrap
+            parameters: &common_parameters
+              - "--catalog={{job.parameters.catalog}}"
+              - "--schema-prefix={{job.parameters.schema_prefix}}"
+              - "--tenant-id={{job.parameters.tenant_id}}"
+              - "--landing-dir={{job.parameters.landing_dir}}"
+              - "--secret-scope={{job.parameters.secret_scope}}"
+              - "--github-repo={{job.parameters.github_repo}}"
+              - "--jira-base-url={{job.parameters.jira_base_url}}"
+              - "--jira-project={{job.parameters.jira_project}}"
+              - "--llm-endpoint={{job.parameters.llm_endpoint}}"
+
+        - task_key: collect
+          depends_on:
+            - task_key: bootstrap
+          environment_key: default
+          python_wheel_task:
+            package_name: eict
+            entry_point: collect
+            parameters: *common_parameters
+
+        - task_key: medallion
+          depends_on:
+            - task_key: collect
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.medallion.id}
+            full_refresh: false
+
+        - task_key: correlate
+          depends_on:
+            - task_key: medallion
+          environment_key: default
+          python_wheel_task:
+            package_name: eict
+            entry_point: correlate
+            parameters: *common_parameters
+
+        - task_key: narrate
+          depends_on:
+            - task_key: correlate
+          environment_key: default
+          python_wheel_task:
+            package_name: eict
+            entry_point: narrate
+            parameters: *common_parameters
+
+        - task_key: dispatch
+          depends_on:
+            - task_key: narrate
+          environment_key: default
+          python_wheel_task:
+            package_name: eict
+            entry_point: dispatch
+            parameters: *common_parameters

@@ -1,0 +1,29 @@
+resources:
+  jobs:
+    generate_data:
+      name: eict-demo-generate-data-${bundle.target}
+      max_concurrent_runs: 1
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+        - name: scale
+          default: ${var.scale}
+        - name: hot_share
+          default: ${var.hot_share}
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+      tasks:
+        - task_key: generate
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/generate_data.py
+            source: WORKSPACE
+            parameters:
+              - "--catalog={{job.parameters.catalog}}"
+              - "--schema={{job.parameters.schema}}"
+              - "--scale={{job.parameters.scale}}"
+              - "--hot-share={{job.parameters.hot_share}}"

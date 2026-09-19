@@ -1,0 +1,15 @@
+.env
+*.tfvars
+__pycache__/
+.venv/
+node_modules/
+.databricks/
+dist/
+build/
+*.whl
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+.claude/
+.ai-dev-kit/

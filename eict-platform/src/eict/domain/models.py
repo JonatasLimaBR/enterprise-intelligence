@@ -1,0 +1,240 @@
+from __future__ import annotations
+
+import hashlib
+from dataclasses import dataclass, field, replace
+from datetime import datetime
+from typing import Any
+
+NOT_AVAILABLE = "not_available"
+PENDING = "pending"
+AVAILABLE = "available"
+
+ACTIVE_INCIDENT_STATES = frozenset(
+    {"detected", "triaged", "investigating", "mitigating", "monitoring"}
+)
+CLOSED_INCIDENT_STATES = frozenset({"recovered", "closed", "cancelled"})
+SUCCESS_STATE = "SUCCESS"
+
+
+def stable_id(prefix: str, *parts: str) -> str:
+    digest = hashlib.sha256("|".join(parts).encode()).hexdigest()
+    return f"{prefix}-{digest[:12]}"
+
+
+def content_hash(payload: str) -> str:
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+@dataclass(frozen=True)
+class Run:
+    run_id: str
+    job_id: str
+    start_time: datetime
+    end_time: datetime
+    duration_s: float
+    result_state: str
+    git_sha: str | None = None
+    env_hash: str | None = None
+    input_rows: int | None = None
+    job_parameters: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def succeeded(self) -> bool:
+        return self.result_state == SUCCESS_STATE
+
+
+@dataclass(frozen=True)
+class RunProfile:
+    run_id: str
+    key: str
+    left_rows: int
+    right_rows: int
+    distinct_keys: int
+    max_key_rows: int
+    median_key_rows: int
+    skew_ratio: float
+    top_key_share: float
+    hot_key: str
+    plan_operators: tuple[str, ...] = ()
+    git_sha: str | None = None
+    source_ref: str | None = None
+
+
+@dataclass(frozen=True)
+class RunFeatures:
+    run: Run
+    profile: RunProfile | None = None
+
+    @property
+    def run_id(self) -> str:
+        return self.run.run_id
+
+    @property
+    def skew_ratio(self) -> float | None:
+        return self.profile.skew_ratio if self.profile else None
+
+    @property
+    def plan_operators(self) -> tuple[str, ...]:
+        return self.profile.plan_operators if self.profile else ()
+
+
+@dataclass(frozen=True)
+class Change:
+    sha: str
+    repo: str
+    author: str
+    committed_at: datetime
+    message: str
+    files: tuple[str, ...] = ()
+    patch: str = ""
+
+
+@dataclass(frozen=True)
+class Evidence:
+    evidence_id: str
+    kind: str
+    source_ref: str
+    observed_at: datetime
+    summary: str
+    value: Any = None
+    hash: str = ""
+
+    @staticmethod
+    def create(
+        kind: str,
+        source_ref: str,
+        observed_at: datetime,
+        summary: str,
+        value: Any = None,
+    ) -> Evidence:
+        evidence_id = stable_id("ev", kind, source_ref, summary)
+        return Evidence(
+            evidence_id=evidence_id,
+            kind=kind,
+            source_ref=source_ref,
+            observed_at=observed_at,
+            summary=summary,
+            value=value,
+            hash=content_hash(f"{kind}|{source_ref}|{summary}|{value}"),
+        )
+
+
+@dataclass(frozen=True)
+class Hypothesis:
+    hypothesis_id: str
+    code: str
+    statement: str
+    confidence: float
+    supporting: tuple[str, ...] = ()
+    contradicting: tuple[str, ...] = ()
+    missing: tuple[str, ...] = ()
+    rank: int = 0
+    status: str = "proposed"
+    policy_version: str = ""
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
+
+    def with_confidence(self, confidence: float) -> Hypothesis:
+        return replace(self, confidence=confidence)
+
+    def with_rank(self, rank: int) -> Hypothesis:
+        return replace(self, rank=rank)
+
+    def confirmed_by(self, reviewer: str, at: datetime) -> Hypothesis:
+        return replace(self, status="confirmed", reviewed_by=reviewer, reviewed_at=at)
+
+    def rejected_by(self, reviewer: str, at: datetime) -> Hypothesis:
+        return replace(self, status="rejected", reviewed_by=reviewer, reviewed_at=at)
+
+
+@dataclass(frozen=True)
+class TimelineEntry:
+    entry_id: str
+    incident_id: str
+    at: datetime
+    kind: str
+    summary: str
+    evidence_ids: tuple[str, ...] = ()
+    actor: str = "eict"
+
+    @staticmethod
+    def create(
+        incident_id: str,
+        at: datetime,
+        kind: str,
+        summary: str,
+        evidence_ids: tuple[str, ...] = (),
+        actor: str = "eict",
+    ) -> TimelineEntry:
+        return TimelineEntry(
+            entry_id=stable_id("tl", incident_id, kind, at.isoformat(), summary),
+            incident_id=incident_id,
+            at=at,
+            kind=kind,
+            summary=summary,
+            evidence_ids=evidence_ids,
+            actor=actor,
+        )
+
+
+@dataclass(frozen=True)
+class Incident:
+    incident_id: str
+    correlation_key: str
+    tenant_id: str
+    job_id: str
+    type: str
+    state: str
+    severity: str
+    first_run_id: str
+    last_run_id: str
+    detected_at: datetime
+    updated_at: datetime
+    affected_assets: tuple[str, ...] = ()
+    ticket_refs: tuple[str, ...] = ()
+    version: int = 1
+
+    @property
+    def is_active(self) -> bool:
+        return self.state in ACTIVE_INCIDENT_STATES
+
+    def touch(self, run: Run) -> Incident:
+        return replace(
+            self,
+            last_run_id=run.run_id,
+            updated_at=run.end_time,
+            version=self.version + 1,
+        )
+
+    def with_assets(self, assets: tuple[str, ...]) -> Incident:
+        return replace(self, affected_assets=assets, version=self.version + 1)
+
+    def with_ticket(self, ticket_ref: str) -> Incident:
+        if ticket_ref in self.ticket_refs:
+            return self
+        return replace(
+            self, ticket_refs=(*self.ticket_refs, ticket_ref), version=self.version + 1
+        )
+
+
+@dataclass(frozen=True)
+class DiffRow:
+    dimension: str
+    healthy: str
+    current: str
+    changed: bool
+
+    @property
+    def available(self) -> bool:
+        return NOT_AVAILABLE not in (self.healthy, self.current)
+
+
+@dataclass(frozen=True)
+class RunCost:
+    run_id: str
+    status: str
+    dbus: float | None = None
+    list_cost_usd: float | None = None
+    baseline_cost_usd: float | None = None
+    incremental_cost_usd: float | None = None
+    source_ref: str | None = None

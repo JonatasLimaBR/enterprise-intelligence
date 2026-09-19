@@ -1,0 +1,30 @@
+resources:
+  schemas:
+    bronze:
+      catalog_name: ${var.catalog}
+      name: ${var.schema_prefix}bronze
+      comment: Raw immutable observations (SPEC-002 envelope)
+    silver:
+      catalog_name: ${var.catalog}
+      name: ${var.schema_prefix}silver
+      comment: Canonical runs, changes and run profiles
+    gold:
+      catalog_name: ${var.catalog}
+      name: ${var.schema_prefix}gold
+      comment: Run features consumed by the correlator
+    ops:
+      catalog_name: ${var.catalog}
+      name: ${var.schema_prefix}ops
+      comment: Incidents, hypotheses, evidence, outbox and capabilities
+    platform:
+      catalog_name: ${var.catalog}
+      name: ${var.schema_prefix}platform
+      comment: Volumes and platform side artifacts
+
+  volumes:
+    landing:
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.platform.name}
+      name: landing
+      volume_type: MANAGED
+      comment: Landing zone for run profiles emitted by instrumented workloads

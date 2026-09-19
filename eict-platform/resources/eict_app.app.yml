@@ -1,0 +1,11 @@
+resources:
+  apps:
+    eict_console:
+      name: eict-console-${bundle.target}
+      description: Console de incidentes da EICT
+      source_code_path: ../app
+      resources:
+        - name: sql_warehouse
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE

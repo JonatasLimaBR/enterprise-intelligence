@@ -1,0 +1,77 @@
+{
+  "datasets": [
+    {
+      "name": "sales_daily",
+      "displayName": "Vendas diárias",
+      "queryLines": [
+        "SELECT order_date, region, revenue, orders, customers\n",
+        "FROM workspace.eict_workload.sales_daily\n",
+        "ORDER BY order_date DESC"
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "overview",
+      "displayName": "Visão geral",
+      "layout": [
+        {
+          "widget": {
+            "name": "revenue_by_day",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sales_daily",
+                  "fields": [
+                    {"name": "order_date", "expression": "`order_date`"},
+                    {"name": "sum(revenue)", "expression": "SUM(`revenue`)"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {"fieldName": "order_date", "scale": {"type": "temporal"}, "displayName": "Data"},
+                "y": {"fieldName": "sum(revenue)", "scale": {"type": "quantitative"}, "displayName": "Receita"}
+              },
+              "frame": {"title": "Receita por dia", "showTitle": true}
+            }
+          },
+          "position": {"x": 0, "y": 0, "width": 6, "height": 6}
+        },
+        {
+          "widget": {
+            "name": "revenue_by_region",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sales_daily",
+                  "fields": [
+                    {"name": "region", "expression": "`region`"},
+                    {"name": "sum(revenue)", "expression": "SUM(`revenue`)"}
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {"fieldName": "region", "scale": {"type": "categorical"}, "displayName": "Região"},
+                "y": {"fieldName": "sum(revenue)", "scale": {"type": "quantitative"}, "displayName": "Receita"}
+              },
+              "frame": {"title": "Receita por região", "showTitle": true}
+            }
+          },
+          "position": {"x": 0, "y": 6, "width": 6, "height": 6}
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,259 @@
+from __future__ import annotations
+
+import json
+import os
+import uuid
+from datetime import UTC, datetime
+
+import streamlit as st
+from databricks import sql
+from databricks.sdk.core import Config
+
+CATALOG = os.getenv("EICT_CATALOG", "workspace")
+SCHEMA_PREFIX = os.getenv("EICT_SCHEMA_PREFIX", "eict_")
+WAREHOUSE_ID = os.getenv("DATABRICKS_WAREHOUSE_ID", "")
+NOT_AVAILABLE = "not_available"
+
+st.set_page_config(page_title="EICT - Incidentes", layout="wide")
+
+
+def table(layer: str, name: str) -> str:
+    return f"{CATALOG}.{SCHEMA_PREFIX}{layer}.{name}"
+
+
+def connection():
+    config = Config()
+    return sql.connect(
+        server_hostname=config.host.replace("https://", ""),
+        http_path=f"/sql/1.0/warehouses/{WAREHOUSE_ID}",
+        credentials_provider=lambda: config.authenticate,
+    )
+
+
+def query(statement: str, parameters: dict | None = None) -> list[dict]:
+    with connection() as connection_handle, connection_handle.cursor() as cursor:
+        cursor.execute(statement, parameters or {})
+        columns = [column[0] for column in cursor.description]
+        return [dict(zip(columns, row, strict=False)) for row in cursor.fetchall()]
+
+
+def execute(statement: str, parameters: dict) -> None:
+    with connection() as connection_handle, connection_handle.cursor() as cursor:
+        cursor.execute(statement, parameters)
+
+
+@st.cache_data(ttl=60)
+def load_incidents() -> list[dict]:
+    return query(
+        f"SELECT * FROM {table('ops', 'incidents')} ORDER BY updated_at DESC LIMIT 50"
+    )
+
+
+def load_timeline(incident_id: str) -> list[dict]:
+    return query(
+        f"SELECT at, kind, summary, actor FROM {table('ops', 'incident_timeline')} "
+        "WHERE incident_id = :incident_id ORDER BY at",
+        {"incident_id": incident_id},
+    )
+
+
+def load_hypotheses(incident_id: str) -> list[dict]:
+    return query(
+        f"SELECT * FROM {table('ops', 'hypotheses')} "
+        "WHERE incident_id = :incident_id ORDER BY rank",
+        {"incident_id": incident_id},
+    )
+
+
+def load_evidence(incident_id: str) -> dict[str, dict]:
+    rows = query(
+        f"SELECT * FROM {table('ops', 'evidence')} WHERE incident_id = :incident_id",
+        {"incident_id": incident_id},
+    )
+    return {row["evidence_id"]: row for row in rows}
+
+
+def load_narrative(incident_id: str) -> dict | None:
+    rows = query(
+        f"SELECT * FROM {table('ops', 'narratives')} "
+        "WHERE incident_id = :incident_id ORDER BY created_at DESC LIMIT 1",
+        {"incident_id": incident_id},
+    )
+    return rows[0] if rows else None
+
+
+def load_run_features(run_ids: list[str]) -> dict[str, dict]:
+    if not run_ids:
+        return {}
+    quoted = ", ".join(f"'{run_id}'" for run_id in run_ids)
+    rows = query(f"SELECT * FROM {table('gold', 'run_features')} WHERE run_id IN ({quoted})")
+    return {row["run_id"]: row for row in rows}
+
+
+def load_cost(run_id: str) -> dict | None:
+    rows = query(
+        f"SELECT * FROM {table('ops', 'run_cost')} WHERE run_id = :run_id",
+        {"run_id": run_id},
+    )
+    return rows[0] if rows else None
+
+
+def load_reviews(incident_id: str) -> list[dict]:
+    return query(
+        f"SELECT * FROM {table('ops', 'hypothesis_reviews')} "
+        "WHERE incident_id = :incident_id ORDER BY at DESC",
+        {"incident_id": incident_id},
+    )
+
+
+def save_review(incident_id: str, hypothesis_id: str, decision: str, reviewer: str, note: str) -> None:
+    execute(
+        f"INSERT INTO {table('ops', 'hypothesis_reviews')} "
+        "(review_id, hypothesis_id, incident_id, decision, reviewer, at, note) "
+        "VALUES (:review_id, :hypothesis_id, :incident_id, :decision, :reviewer, :at, :note)",
+        {
+            "review_id": str(uuid.uuid4()),
+            "hypothesis_id": hypothesis_id,
+            "incident_id": incident_id,
+            "decision": decision,
+            "reviewer": reviewer,
+            "at": datetime.now(UTC),
+            "note": note,
+        },
+    )
+
+
+def render_diff(healthy: dict | None, current: dict) -> None:
+    dimensions = [
+        ("commit", "git_sha"),
+        ("ambiente", "env_hash"),
+        ("duração (s)", "duration_s"),
+        ("linhas de entrada", "input_rows"),
+        ("maior chave (linhas)", "max_key_rows"),
+        ("mediana (linhas)", "median_key_rows"),
+        ("skew ratio", "skew_ratio"),
+        ("share da chave quente", "top_key_share"),
+        ("operadores do plano", "plan_operators"),
+    ]
+    rows = []
+    for label, column in dimensions:
+        healthy_value = _render(healthy.get(column)) if healthy else NOT_AVAILABLE
+        current_value = _render(current.get(column))
+        rows.append(
+            {
+                "dimensão": label,
+                "run saudável": healthy_value,
+                "run atual": current_value,
+                "mudou": _changed(healthy_value, current_value),
+            }
+        )
+    rows.append({"dimensão": "spill", "run saudável": NOT_AVAILABLE, "run atual": NOT_AVAILABLE, "mudou": ""})
+    rows.append({"dimensão": "GC", "run saudável": NOT_AVAILABLE, "run atual": NOT_AVAILABLE, "mudou": ""})
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+
+
+def _changed(healthy_value: str, current_value: str) -> str:
+    if NOT_AVAILABLE in (healthy_value, current_value):
+        return ""
+    return "sim" if healthy_value != current_value else ""
+
+
+def _render(value) -> str:
+    if value is None or value == "":
+        return NOT_AVAILABLE
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value) or NOT_AVAILABLE
+    if isinstance(value, float):
+        return f"{value:,.2f}"
+    return str(value)
+
+
+st.title("EICT - Control Tower")
+st.caption("Incidentes correlacionados com evidência, impacto e custo")
+
+incidents = load_incidents()
+if not incidents:
+    st.info("Nenhum incidente registrado ainda.")
+    st.stop()
+
+labels = {
+    f"{incident['job_id']} · {incident['state']} · {incident['detected_at']:%d/%m %H:%M}": incident
+    for incident in incidents
+}
+selected_label = st.sidebar.radio("Incidentes", list(labels))
+incident = labels[selected_label]
+
+header = st.columns(4)
+header[0].metric("Incidente", incident["incident_id"][:12])
+header[1].metric("Estado", incident["state"])
+header[2].metric("Severidade", incident["severity"])
+cost = load_cost(incident["last_run_id"])
+header[3].metric(
+    "Custo incremental",
+    NOT_AVAILABLE if not cost or cost["status"] != "available" else f"US$ {cost['incremental_cost_usd']:.2f}",
+    help=None if not cost else f"status: {cost['status']}",
+)
+
+narrative = load_narrative(incident["incident_id"])
+evidence = load_evidence(incident["incident_id"])
+st.subheader("Resumo")
+if narrative:
+    sentences = json.loads(narrative["sentences_json"])
+    for sentence in sentences:
+        citations = ", ".join(sentence["evidence_ids"])
+        st.markdown(f"- {sentence['text']}  \n  <small>evidências: {citations}</small>", unsafe_allow_html=True)
+    origem = "LLM" if narrative["source"] == "llm" else "determinístico (fallback)"
+    reason = narrative["rejected_reason"]
+    st.caption(f"Origem: {origem}" + (f" · motivo: {reason}" if reason else ""))
+else:
+    st.caption("Narrativa ainda não gerada.")
+
+st.subheader("Comparação de runs")
+features = load_run_features([incident["first_run_id"], incident["last_run_id"]])
+current = features.get(incident["last_run_id"], {})
+healthy_rows = query(
+    f"SELECT * FROM {table('gold', 'run_features')} "
+    "WHERE job_id = :job_id AND result_state = 'SUCCESS' AND end_time < :before "
+    "ORDER BY end_time DESC LIMIT 1",
+    {"job_id": incident["job_id"], "before": incident["detected_at"]},
+)
+render_diff(healthy_rows[0] if healthy_rows else None, current)
+
+st.subheader("Hipóteses")
+reviews = {review["hypothesis_id"]: review for review in load_reviews(incident["incident_id"])}
+for hypothesis in load_hypotheses(incident["incident_id"]):
+    review = reviews.get(hypothesis["hypothesis_id"])
+    status = review["decision"] if review else hypothesis["status"]
+    with st.expander(
+        f"#{hypothesis['rank']} · {hypothesis['statement']} · confiança {hypothesis['confidence']:.2f} · {status}",
+        expanded=hypothesis["rank"] == 1,
+    ):
+        for bucket, title in (("supporting", "A favor"), ("contradicting", "Contra"), ("missing", "Ausente")):
+            ids = hypothesis.get(bucket) or []
+            if not ids:
+                continue
+            st.markdown(f"**{title}**")
+            for evidence_id in ids:
+                item = evidence.get(evidence_id)
+                st.markdown(f"- `{evidence_id}` {item['summary'] if item else NOT_AVAILABLE}")
+        if status not in ("confirmed", "rejected"):
+            reviewer = st.text_input("Seu e-mail", key=f"reviewer-{hypothesis['hypothesis_id']}")
+            note = st.text_input("Nota", key=f"note-{hypothesis['hypothesis_id']}")
+            columns = st.columns(2)
+            if columns[0].button("Confirmar causa", key=f"confirm-{hypothesis['hypothesis_id']}"):
+                save_review(incident["incident_id"], hypothesis["hypothesis_id"], "confirmed", reviewer, note)
+                st.rerun()
+            if columns[1].button("Descartar", key=f"reject-{hypothesis['hypothesis_id']}"):
+                save_review(incident["incident_id"], hypothesis["hypothesis_id"], "rejected", reviewer, note)
+                st.rerun()
+
+st.subheader("Impacto")
+assets = incident.get("affected_assets") or []
+st.write(", ".join(assets) if assets else NOT_AVAILABLE)
+
+tickets = incident.get("ticket_refs") or []
+st.subheader("Ticket")
+st.write(tickets[0] if tickets else NOT_AVAILABLE)
+
+st.subheader("Timeline")
+st.dataframe(load_timeline(incident["incident_id"]), use_container_width=True, hide_index=True)

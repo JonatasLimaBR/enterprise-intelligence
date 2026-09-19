@@ -1,0 +1,23 @@
+{
+  "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "commit": {
+    "message": "feat: add customer segment join and per-customer ranking",
+    "author": {
+      "name": "Dev",
+      "email": "dev@example.com",
+      "date": "2026-09-19T11:30:00Z"
+    }
+  },
+  "files": [
+    {
+      "filename": "src/sales_daily.py",
+      "status": "modified",
+      "patch": "@@ -20,7 +20,12 @@\n-    orders.join(customers, JOIN_KEY, \"left\")\n+    customer_window = Window.partitionBy(JOIN_KEY).orderBy(F.col(\"order_ts\"))\n+        .join(segments, JOIN_KEY, \"left\")\n+        .withColumn(\"order_rank\", F.row_number().over(customer_window))\n context line untouched"
+    },
+    {
+      "filename": "README.md",
+      "status": "modified",
+      "patch": "@@ -1,3 +1,4 @@\n+ documentation only line"
+    }
+  ]
+}

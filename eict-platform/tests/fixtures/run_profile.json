@@ -1,0 +1,16 @@
+{
+  "run_id": "987654321",
+  "git_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "profiled_at": "2026-09-19T12:00:00+00:00",
+  "key": "customer_id",
+  "left_rows": 20000000,
+  "right_rows": 100000,
+  "distinct_keys": 100000,
+  "max_key_rows": 8000000,
+  "median_key_rows": 120,
+  "skew_ratio": 66666.67,
+  "top_key_share": 0.4,
+  "hot_key": "C-000001",
+  "physical_plan": "== Physical Plan ==\nAdaptiveSparkPlan\n+- Window [row_number() windowspecdefinition(customer_id)]\n   +- Exchange hashpartitioning(customer_id, 200)\n      +- SortMergeJoin [customer_id]",
+  "plan_operators": ["Exchange hashpartitioning(customer_id, 200)", "SortMergeJoin", "Window"]
+}

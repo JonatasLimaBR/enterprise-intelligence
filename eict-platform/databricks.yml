@@ -1,0 +1,48 @@
+bundle:
+  name: eict-platform
+
+variables:
+  catalog:
+    description: Unity Catalog catalog holding every EICT schema
+    default: workspace
+  schema_prefix:
+    description: Prefix applied to bronze/silver/gold/ops/platform schemas
+    default: eict_
+  tenant_id:
+    description: Single tenant identifier for the demo
+    default: demo
+  landing_dir:
+    description: Volume path where instrumented workloads land run profiles
+    default: /Volumes/workspace/eict_platform/landing
+  secret_scope:
+    description: Secret scope holding github_token, jira_email and jira_token
+    default: eict
+  warehouse_id:
+    description: SQL warehouse used by the Databricks App
+    default: ""
+  llm_endpoint:
+    description: Foundation Model API chat endpoint used by the narrator
+    default: databricks-gpt-oss-120b
+  github_repo:
+    description: owner/name of the monitored workload repository
+    default: ""
+  jira_base_url:
+    description: https://<site>.atlassian.net
+    default: ""
+  jira_project:
+    description: Jira project key receiving incident tickets
+    default: ""
+
+artifacts:
+  eict_wheel:
+    type: whl
+    build: python -m build --wheel
+    path: .
+
+include:
+  - resources/*.yml
+
+targets:
+  dev:
+    mode: development
+    default: true

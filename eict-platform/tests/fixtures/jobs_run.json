@@ -1,0 +1,16 @@
+{
+  "run_id": 987654321,
+  "job_id": 42,
+  "start_time": 1789900000000,
+  "end_time": 1789903420000,
+  "run_page_url": "https://example.cloud.databricks.com/#job/42/run/987654321",
+  "state": {
+    "life_cycle_state": "TERMINATED",
+    "result_state": "SUCCESS"
+  },
+  "job_parameters": [
+    {"name": "git_sha", "value": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "default": ""},
+    {"name": "catalog", "value": "workspace", "default": "workspace"},
+    {"name": "schema", "default": "eict_workload"}
+  ]
+}

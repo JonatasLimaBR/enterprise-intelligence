@@ -1,0 +1,15 @@
+resources:
+  pipelines:
+    medallion:
+      name: eict-medallion-${bundle.target}
+      catalog: ${var.catalog}
+      schema: ${var.schema_prefix}silver
+      serverless: true
+      continuous: false
+      photon: true
+      configuration:
+        eict.landing_dir: ${var.landing_dir}
+        eict.bronze_table: ${var.catalog}.${var.schema_prefix}bronze.observations
+      libraries:
+        - file:
+            path: ../pipelines/medallion.py

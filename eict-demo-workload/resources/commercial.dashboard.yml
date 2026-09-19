@@ -1,0 +1,7 @@
+resources:
+  dashboards:
+    commercial:
+      display_name: Comercial - Vendas Diárias (${bundle.target})
+      file_path: ../src/commercial.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      parent_path: /Shared

@@ -1,0 +1,30 @@
+{
+  "scenario": "runtime_regression_by_window_skew",
+  "expected_incident": {
+    "type": "runtime_regression",
+    "count": 1,
+    "states": ["detected", "triaged", "investigating"]
+  },
+  "expected_top_hypothesis": {
+    "code": "skew_join_change",
+    "rank": 1,
+    "min_confidence": 0.6,
+    "required_evidence_kinds": ["data_skew", "plan_operator", "change"],
+    "required_missing_evidence_kinds": ["spill_gc"]
+  },
+  "expected_other_hypotheses": [
+    {"code": "compute_change", "expect_contradicting": true},
+    {"code": "volume_growth", "expect_contradicting": true}
+  ],
+  "expected_profile": {
+    "key": "customer_id",
+    "hot_key": "C-000001",
+    "min_skew_ratio": 10.0,
+    "min_top_key_share": 0.3,
+    "required_plan_operators": ["Window"]
+  },
+  "expected_diff_dimensions_min": 7,
+  "expected_not_available": ["spill_bytes", "gc_ms"],
+  "expected_regression_factor_min": 1.5,
+  "notes": "Baseline uses >= 5 successful runs of commit A; commit B adds the customer_segments join and a Window partitioned by the hot customer_id."
+}
