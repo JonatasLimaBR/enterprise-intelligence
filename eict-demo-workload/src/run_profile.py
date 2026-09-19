@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 import re
 from datetime import datetime, timezone
 
@@ -64,7 +65,9 @@ def write_profile(
         "plan_operators": sorted(set(OPERATOR_RE.findall(plan))),
         **key_distribution(keyed_input, key),
     }
-    destination = f"{landing_dir}/run_profiles/{run_id}.json"
+    target_dir = f"{landing_dir}/run_profiles"
+    os.makedirs(target_dir, exist_ok=True)
+    destination = f"{target_dir}/{run_id}.json"
     with open(destination, "w", encoding="utf-8") as handle:
         json.dump(profile, handle, ensure_ascii=False)
     return profile
