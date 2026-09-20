@@ -59,7 +59,7 @@ def validate_narrative(
     raw: str, allowed_ids: set[str]
 ) -> tuple[NarrativeModel | None, str | None]:
     try:
-        model = NarrativeModel.model_validate_json(_strip_fences(raw))
+        model = NarrativeModel.model_validate_json(_strip_fences(as_text(raw)))
     except ValidationError as exc:
         return None, f"schema:{exc.error_count()}"
     except ValueError:
@@ -122,8 +122,20 @@ def narrate(
     return Narrative(source=LLM_SOURCE, sentences=tuple(model.sentences))
 
 
+def as_text(content: object) -> str:
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts = [
+            part.get("text", "") if isinstance(part, dict) else getattr(part, "text", "")
+            for part in content
+        ]
+        return "".join(part for part in parts if isinstance(part, str))
+    return str(content)
+
+
 def _strip_fences(text: str) -> str:
-    stripped = text.strip()
+    stripped = as_text(text).strip()
     if stripped.startswith("```"):
         lines = [line for line in stripped.split("\n")[1:] if line.strip() != "```"]
         stripped = "\n".join(lines)

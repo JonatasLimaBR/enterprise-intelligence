@@ -56,6 +56,15 @@ def change_envelope(change, settings: Settings, source: str) -> Envelope:
     )
 
 
+def referenced_shas(spark: Any, settings: Settings) -> set[str]:
+    records = store.query(
+        spark,
+        f"SELECT DISTINCT git_sha FROM {settings.table('silver', 'runs')} "
+        "WHERE git_sha IS NOT NULL",
+    )
+    return {record["git_sha"] for record in records if record.get("git_sha")}
+
+
 def known_shas(spark: Any, settings: Settings) -> set[str]:
     records = store.query(
         spark,
@@ -144,7 +153,7 @@ def main(argv: list[str] | None = None) -> None:
         envelope.data["git_sha"]
         for envelope in run_envelopes
         if envelope.data.get("git_sha")
-    }
+    } | referenced_shas(spark, settings)
     github = _github_client(workspace, settings)
     change_envelopes = collect_changes(spark, settings, github, shas, source)
 

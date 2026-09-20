@@ -126,3 +126,26 @@ def test_latest_review_wins():
 
     assert updated[0].status == "rejected"
     assert updated[0].reviewed_by == "b@example.com"
+
+
+def test_timeline_entry_is_stable_per_run_across_reprocessing():
+    run = make_run(7, duration_s=3420)
+    incident, created = open_or_update([], TENANT, JOB_ID, RUNTIME_REGRESSION, run)
+
+    first_pass = detection_entry(incident, run, BASELINE, created)
+    second_pass = detection_entry(incident, run, BASELINE, False)
+
+    assert first_pass.entry_id == second_pass.entry_id
+    assert first_pass.kind == "detected"
+    assert second_pass.kind == "recurrence"
+
+
+def test_timeline_entries_differ_between_runs():
+    first_run = make_run(7, duration_s=3420)
+    second_run = make_run(8, duration_s=3500)
+    incident, _ = open_or_update([], TENANT, JOB_ID, RUNTIME_REGRESSION, first_run)
+
+    assert (
+        detection_entry(incident, first_run, BASELINE, True).entry_id
+        != detection_entry(incident, second_run, BASELINE, False).entry_id
+    )

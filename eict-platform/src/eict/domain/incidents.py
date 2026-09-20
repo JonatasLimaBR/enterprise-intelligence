@@ -59,12 +59,16 @@ def open_or_update(
 
 
 def detection_entry(incident: Incident, run: Run, baseline: Baseline, created: bool) -> TimelineEntry:
-    kind = "detected" if created else "recurrence"
-    summary = (
-        f"Run {run.run_id} levou {run.duration_s:.0f}s contra p95 de {baseline.p95_s:.0f}s "
-        f"(baseline n={baseline.n})"
+    return TimelineEntry(
+        entry_id=stable_id("tl", incident.incident_id, run.run_id),
+        incident_id=incident.incident_id,
+        at=run.end_time,
+        kind="detected" if created else "recurrence",
+        summary=(
+            f"Run {run.run_id} levou {run.duration_s:.0f}s contra p95 de {baseline.p95_s:.0f}s "
+            f"(baseline n={baseline.n})"
+        ),
     )
-    return TimelineEntry.create(incident.incident_id, run.end_time, kind, summary)
 
 
 def apply_reviews(

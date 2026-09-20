@@ -94,14 +94,15 @@ databricks bundle deploy   -t dev --profile eict
 | Item | Estado |
 |------|--------|
 | Código | ✅ completo — 63 arquivos nos 2 bundles |
-| Qualidade | ✅ ruff limpo · 86 testes · cobertura do domínio 96% · `bundle validate` OK nos 2 bundles · wheel OK |
-| Deploy no workspace | ⏳ **não executado** (consome DBUs; requer aval) |
-| Cenário fim a fim (SC1, SC2, SC5, AT-011) | ⏳ pendente de deploy |
-| Pendências externas | repo GitHub, projeto Jira, secret scope `eict`, grant de `system.billing` (account admin) |
+| Qualidade | ✅ ruff limpo · 100 testes · cobertura do domínio 96% |
+| Deploy no workspace | ✅ executado (schemas, pipeline, job, App) |
+| Cenário fim a fim | ✅ regressão de **5,6×** detectada; RCA com hipótese correta em 1º e confiança 0,90 |
+| Console | https://eict-console-dev-7474644308924051.aws.databricksapps.com |
+| Pendências | Jira (SC4) e medição de latência SC5 |
 
-Os documentos do fluxo SDD (brainstorm, define, design e build report) ficam em `.claude/`, fora do versionamento.
+**Resultado medido:** baseline de 5 runs (168–280s, p95 276s) contra 2 runs lentos (1.570s e 1.547s) → 1 incidente idempotente, 4 evidências (skew na chave, operador `Window` novo no plano, commit `9872c00`, volume estável), impacto no dashboard AI/BI via lineage e custo incremental de US$ 0,0682. A saída do LLM foi **rejeitada pela validação** e a narrativa caiu no fallback determinístico.
 
-**Restrições do workspace usado na demo:** só compute serverless (sem cluster clássico, sem Spark event logs, Spark confs limitadas — por isso a evidência de skew vem do run profile instrumentado); `system.billing.*` só para account admins (custo aparece como `not_available`).
+**Restrições do workspace usado na demo:** só compute serverless (sem cluster clássico, sem Spark event logs, Spark confs limitadas — por isso a evidência de skew vem do run profile instrumentado); `system.billing.*` não é legível pelo usuário no editor SQL, mas **é** pela identidade do job — o custo funciona.
 
 ---
 

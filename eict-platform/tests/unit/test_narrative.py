@@ -110,3 +110,25 @@ def test_validate_narrative_returns_model_when_ids_are_known():
 
     assert reason is None
     assert model is not None
+
+
+def test_content_blocks_from_the_endpoint_are_flattened(
+    regressed_features, healthy_features, commit_b
+):
+    incident, hypotheses, facts = _context(regressed_features, healthy_features, commit_b)
+    payload = json.dumps(
+        {"sentences": [{"text": "Skew detectado.", "evidence_ids": [facts[0].evidence_id]}]}
+    )
+
+    narrative = narrate([{"type": "text", "text": payload}], incident, hypotheses, facts)
+
+    assert narrative.source == LLM_SOURCE
+    assert narrative.rejected_reason is None
+
+
+def test_as_text_handles_strings_lists_and_objects():
+    from eict.domain.narrative import as_text
+
+    assert as_text("texto") == "texto"
+    assert as_text([{"type": "text", "text": "a"}, {"type": "text", "text": "b"}]) == "ab"
+    assert as_text(123) == "123"
