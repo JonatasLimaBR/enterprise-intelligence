@@ -131,3 +131,48 @@ def test_parse_settings_reads_job_parameters():
     assert settings.catalog == "main"
     assert settings.table("gold", "run_features") == "main.x_gold.run_features"
     assert settings.llm_endpoint == "databricks-gpt-oss-120b"
+
+
+def test_align_rows_fills_missing_columns_with_none():
+    rows = [{"a": 1}, {"a": 2, "b": "x"}]
+
+    aligned = store.align_rows(["a", "b", "c"], rows)
+
+    assert aligned == [
+        {"a": 1, "b": None, "c": None},
+        {"a": 2, "b": "x", "c": None},
+    ]
+
+
+def test_align_rows_drops_columns_absent_from_the_target_table():
+    aligned = store.align_rows(["a"], [{"a": 1, "extra": "ignored"}])
+
+    assert aligned == [{"a": 1}]
+
+
+def test_ensure_utc_attaches_timezone_to_naive_timestamps():
+    from datetime import datetime as dt
+
+    naive = dt(2026, 9, 19, 23, 30)
+
+    aware = store.ensure_utc(naive)
+
+    assert aware.tzinfo is not None
+    assert aware.utcoffset().total_seconds() == 0
+
+
+def test_ensure_utc_keeps_aware_timestamps_and_other_values():
+    assert store.ensure_utc(NOW) == NOW
+    assert store.ensure_utc("texto") == "texto"
+    assert store.ensure_utc(None) is None
+
+
+def test_utc_row_normalizes_every_timestamp_column():
+    from datetime import datetime as dt
+
+    row = {"run_id": "7", "start_time": dt(2026, 9, 19, 20), "duration_s": 12.0}
+
+    normalized = store.utc_row(row)
+
+    assert normalized["start_time"].tzinfo is not None
+    assert normalized["duration_s"] == 12.0

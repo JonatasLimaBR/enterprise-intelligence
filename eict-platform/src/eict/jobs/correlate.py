@@ -168,19 +168,26 @@ def correlate(
     lineage_available = capability_probe.status_of(capabilities, capability_probe.TABLE_LINEAGE)
     billing_available = capability_probe.status_of(capabilities, capability_probe.BILLING_USAGE)
     touched: list[Incident] = []
+    incident_run_ids = _runs_under_incident(incidents)
 
     for current in features:
-        verdict = baseline_rules.evaluate(current.run, history)
+        verdict = baseline_rules.evaluate(current.run, history, incident_run_ids)
         if not verdict.is_regression or verdict.baseline is None:
+            incident_run_ids = incident_run_ids - {current.run_id}
             continue
 
         incident, created = open_or_update(
             incidents, settings.tenant_id, current.run.job_id, RUNTIME_REGRESSION, current.run
         )
-        healthy_run = baseline_rules.last_healthy_run(history, current.run)
+        incident_run_ids = incident_run_ids | {current.run_id}
+        healthy_run = baseline_rules.last_healthy_run(history, current.run, incident_run_ids)
         healthy = by_run_id.get(healthy_run.run_id) if healthy_run else None
         analysis = hypothesis_rules.analyze(
-            current, healthy, changes_in_window(changes, healthy, current), now
+            current,
+            healthy,
+            changes_in_window(changes, healthy, current),
+            now,
+            scope_id=incident.incident_id,
         )
         reviewed, review_entries = apply_reviews(list(analysis.hypotheses), reviews)
 
@@ -200,6 +207,14 @@ def correlate(
         touched.append(incident)
 
     return touched
+
+
+def _runs_under_incident(incidents: list[Incident]) -> frozenset[str]:
+    attributed: set[str] = set()
+    for incident in incidents:
+        if incident.is_active:
+            attributed.update({incident.first_run_id, incident.last_run_id})
+    return frozenset(attributed)
 
 
 def _persist_incident(

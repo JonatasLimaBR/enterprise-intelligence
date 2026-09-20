@@ -5,7 +5,7 @@ description = "Enterprise Intelligence Control Tower - DataOps demo platform"
 requires-python = ">=3.11"
 dependencies = [
     "pydantic>=2.7",
-    "databricks-sdk>=0.30",
+    "databricks-sdk[openai]>=0.30",
     "requests>=2.32",
 ]
 

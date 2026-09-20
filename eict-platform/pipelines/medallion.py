@@ -82,7 +82,7 @@ def run_profiles():
 
 @dlt.table(name="run_features", comment="Run level features consumed by the correlator")
 def run_features():
-    runs_df = dlt.read("runs")
+    runs_df = dlt.read("runs").drop("source_ref")
     profiles_df = dlt.read("run_profiles").drop("git_sha")
     return (
         runs_df.join(profiles_df, on="run_id", how="left")

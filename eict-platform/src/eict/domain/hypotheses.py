@@ -37,6 +37,7 @@ def analyze(
     healthy: RunFeatures | None,
     changes: list[Change],
     now: datetime,
+    scope_id: str | None = None,
 ) -> Analysis:
     collected: dict[str, Evidence] = {}
 
@@ -45,12 +46,13 @@ def analyze(
         collected[evidence.evidence_id] = evidence
         return evidence.evidence_id
 
+    scope = scope_id or current.run_id
     hypotheses = [
-        _skew_hypothesis(current, healthy, changes, record),
-        _volume_hypothesis(current, healthy, record),
-        _compute_hypothesis(current, healthy, record),
+        _skew_hypothesis(current, healthy, changes, record, scope),
+        _volume_hypothesis(current, healthy, record, scope),
+        _compute_hypothesis(current, healthy, record, scope),
     ]
-    temporal = _temporal_hypothesis(current, changes, record)
+    temporal = _temporal_hypothesis(current, changes, record, scope)
     if temporal is not None:
         hypotheses.append(temporal)
     return Analysis(tuple(rank(hypotheses)), tuple(collected.values()))
@@ -72,7 +74,7 @@ def rank(hypotheses: list[Hypothesis]) -> list[Hypothesis]:
     return [hypothesis.with_rank(index + 1) for index, hypothesis in enumerate(ordered)]
 
 
-def _skew_hypothesis(current, healthy, changes, record) -> Hypothesis:
+def _skew_hypothesis(current, healthy, changes, record, scope: str) -> Hypothesis:
     supporting: list[str] = []
     contradicting: list[str] = []
     missing: list[str] = []
@@ -146,7 +148,7 @@ def _skew_hypothesis(current, healthy, changes, record) -> Hypothesis:
         "degradou o tempo de execução"
     )
     return Hypothesis(
-        hypothesis_id=stable_id("hyp", current.run_id, "skew_join_change"),
+        hypothesis_id=stable_id("hyp", scope, "skew_join_change"),
         code="skew_join_change",
         statement=statement,
         confidence=confidence,
@@ -157,7 +159,7 @@ def _skew_hypothesis(current, healthy, changes, record) -> Hypothesis:
     )
 
 
-def _volume_hypothesis(current, healthy, record) -> Hypothesis:
+def _volume_hypothesis(current, healthy, record, scope: str) -> Hypothesis:
     growth = _volume_growth(current, healthy)
     supporting: list[str] = []
     contradicting: list[str] = []
@@ -190,7 +192,7 @@ def _volume_hypothesis(current, healthy, record) -> Hypothesis:
         )
 
     return Hypothesis(
-        hypothesis_id=stable_id("hyp", current.run_id, "volume_growth"),
+        hypothesis_id=stable_id("hyp", scope, "volume_growth"),
         code="volume_growth",
         statement="Crescimento do volume de entrada explica o tempo maior",
         confidence=confidence,
@@ -201,7 +203,7 @@ def _volume_hypothesis(current, healthy, record) -> Hypothesis:
     )
 
 
-def _compute_hypothesis(current, healthy, record) -> Hypothesis:
+def _compute_hypothesis(current, healthy, record, scope: str) -> Hypothesis:
     supporting: list[str] = []
     contradicting: list[str] = []
     missing: list[str] = []
@@ -235,7 +237,7 @@ def _compute_hypothesis(current, healthy, record) -> Hypothesis:
         )
 
     return Hypothesis(
-        hypothesis_id=stable_id("hyp", current.run_id, "compute_change"),
+        hypothesis_id=stable_id("hyp", scope, "compute_change"),
         code="compute_change",
         statement="Mudança de compute/ambiente explica o tempo maior",
         confidence=confidence,
@@ -246,7 +248,7 @@ def _compute_hypothesis(current, healthy, record) -> Hypothesis:
     )
 
 
-def _temporal_hypothesis(current, changes, record) -> Hypothesis | None:
+def _temporal_hypothesis(current, changes, record, scope: str) -> Hypothesis | None:
     unrelated = [change for change in changes if not SKEW_PATCH_RE.search(change.patch)]
     if not unrelated:
         return None
@@ -258,7 +260,7 @@ def _temporal_hypothesis(current, changes, record) -> Hypothesis | None:
         change.sha,
     )
     return Hypothesis(
-        hypothesis_id=stable_id("hyp", current.run_id, "change_temporal_only"),
+        hypothesis_id=stable_id("hyp", scope, "change_temporal_only"),
         code="change_temporal_only",
         statement="Alguma mudança recente não identificada explica o tempo maior",
         confidence=TEMPORAL_ONLY_CONFIDENCE,

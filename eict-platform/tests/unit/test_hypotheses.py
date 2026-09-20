@@ -113,3 +113,31 @@ def test_no_hypothesis_reaches_certainty(regressed_features, healthy_features, c
 
     assert all(item.confidence < 1.0 for item in analysis.hypotheses)
     assert all(item.status == "proposed" for item in analysis.hypotheses)
+
+
+def test_scope_id_keeps_one_hypothesis_set_per_incident(
+    regressed_features, healthy_features, commit_b
+):
+    first = analyze(regressed_features, healthy_features, [commit_b], BASE_TIME, scope_id="inc-1")
+    run = make_run(9, duration_s=3600, git_sha=regressed_features.run.git_sha)
+    second_features = RunFeatures(run=run, profile=make_profile(run.run_id, skew_ratio=18.0))
+    second = analyze(second_features, healthy_features, [commit_b], BASE_TIME, scope_id="inc-1")
+
+    assert [h.hypothesis_id for h in first.hypotheses] == [
+        h.hypothesis_id for h in second.hypotheses
+    ]
+
+
+def test_without_scope_id_hypotheses_are_per_run(
+    regressed_features, healthy_features, commit_b
+):
+    first = analyze(regressed_features, healthy_features, [commit_b], BASE_TIME)
+    run = make_run(9, duration_s=3600)
+    second = analyze(
+        RunFeatures(run=run, profile=make_profile(run.run_id)),
+        healthy_features,
+        [commit_b],
+        BASE_TIME,
+    )
+
+    assert first.hypotheses[0].hypothesis_id != second.hypotheses[0].hypothesis_id

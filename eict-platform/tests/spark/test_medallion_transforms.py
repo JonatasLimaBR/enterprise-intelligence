@@ -68,3 +68,20 @@ def test_envelope_data_is_parseable_as_json(spark):
     parsed = df.withColumn("payload", F.from_json("data", "run_id string, duration_s double"))
 
     assert parsed.first()["payload"]["duration_s"] == 3420.0
+
+
+def test_run_features_join_has_no_ambiguous_columns(spark):
+    runs = spark.createDataFrame(
+        [("run-1", "job-42", "databricks/demo")],
+        "run_id string, job_id string, source_ref string",
+    )
+    profiles = spark.createDataFrame(
+        [("run-1", 18.0, "/Volumes/landing/run-1.json")],
+        "run_id string, skew_ratio double, source_ref string",
+    )
+
+    features = runs.drop("source_ref").join(profiles, on="run_id", how="left")
+    names = features.columns
+
+    assert len(names) == len(set(names))
+    assert features.first()["source_ref"].startswith("/Volumes")

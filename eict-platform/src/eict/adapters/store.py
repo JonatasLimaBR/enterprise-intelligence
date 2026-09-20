@@ -1,25 +1,43 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from eict.domain.models import Evidence, Hypothesis, Incident, Run, RunProfile, TimelineEntry
 
 
+def ensure_utc(value: Any) -> Any:
+    if isinstance(value, datetime) and value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value
+
+
+def utc_row(record: dict) -> dict:
+    return {key: ensure_utc(value) for key, value in record.items()}
+
+
 def rows_to_dicts(rows: Any) -> list[dict]:
-    return [row.asDict(recursive=True) for row in rows]
+    return [utc_row(row.asDict(recursive=True)) for row in rows]
 
 
 def query(spark: Any, sql: str) -> list[dict]:
     return rows_to_dicts(spark.sql(sql).collect())
 
 
+def align_rows(column_names: list[str], rows: list[dict]) -> list[dict]:
+    return [{name: row.get(name) for name in column_names} for row in rows]
+
+
+def frame_for(spark: Any, table: str, rows: list[dict]):
+    schema = spark.table(table).schema
+    names = [field.name for field in schema.fields]
+    return spark.createDataFrame(align_rows(names, rows), schema=schema)
+
+
 def append_rows(spark: Any, table: str, rows: list[dict]) -> int:
     if not rows:
         return 0
-    spark.createDataFrame(rows).write.mode("append").option(
-        "mergeSchema", "true"
-    ).saveAsTable(table)
+    frame_for(spark, table, rows).write.mode("append").saveAsTable(table)
     return len(rows)
 
 
@@ -27,7 +45,7 @@ def merge_rows(spark: Any, table: str, rows: list[dict], keys: list[str]) -> int
     if not rows:
         return 0
     view = f"staged_{abs(hash(table)) % 10_000}"
-    spark.createDataFrame(rows).createOrReplaceTempView(view)
+    frame_for(spark, table, rows).createOrReplaceTempView(view)
     condition = " AND ".join(f"target.{key} = source.{key}" for key in keys)
     spark.sql(
         f"""
@@ -46,7 +64,7 @@ def insert_missing(spark: Any, table: str, rows: list[dict], key: str) -> int:
     if not rows:
         return 0
     view = f"incoming_{abs(hash(table)) % 10_000}"
-    spark.createDataFrame(rows).createOrReplaceTempView(view)
+    frame_for(spark, table, rows).createOrReplaceTempView(view)
     spark.sql(
         f"""
         MERGE INTO {table} AS target

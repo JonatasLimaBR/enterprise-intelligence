@@ -63,11 +63,18 @@ def evaluate(
     return RegressionVerdict(is_regression(run, baseline), baseline)
 
 
-def last_healthy_run(history: list[Run], before: Run) -> Run | None:
+def last_healthy_run(
+    history: list[Run],
+    before: Run,
+    excluded_run_ids: frozenset[str] = frozenset(),
+) -> Run | None:
     candidates = [
         run
         for run in history
-        if run.succeeded and run.run_id != before.run_id and run.end_time <= before.start_time
+        if run.succeeded
+        and run.run_id != before.run_id
+        and run.end_time <= before.start_time
+        and run.run_id not in excluded_run_ids
     ]
     if not candidates:
         return None

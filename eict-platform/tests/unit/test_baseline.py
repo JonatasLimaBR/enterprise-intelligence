@@ -73,3 +73,15 @@ def test_last_healthy_run_returns_latest_successful(healthy_history):
 
     assert healthy is not None
     assert healthy.run_id == "run-6"
+
+
+def test_last_healthy_run_skips_runs_attributed_to_an_incident(healthy_history):
+    regressed_first = make_run(7, duration_s=3420)
+    history = [*healthy_history, regressed_first]
+    current = make_run(8, duration_s=3500)
+
+    naive = last_healthy_run(history, current)
+    aware = last_healthy_run(history, current, frozenset({regressed_first.run_id}))
+
+    assert naive is not None and naive.run_id == regressed_first.run_id
+    assert aware is not None and aware.run_id == "run-6"
