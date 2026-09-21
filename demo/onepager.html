@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>EICT — resumo de uma página</title>
+<style>
+  :root { --fg:#16202c; --muted:#5b6b7c; --accent:#0b5fff; --line:#d8e0e8; --good:#0a7d33; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0 auto; max-width: 820px; padding: 28px 32px; color: var(--fg); background: #fff;
+    font: 13.5px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  header { border-bottom: 2px solid var(--accent); padding-bottom: 10px; margin-bottom: 14px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 13px; }
+  h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--accent);
+       margin: 16px 0 6px; }
+  p { margin: 0 0 8px; }
+  .facts { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin: 12px 0; }
+  .fact { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; }
+  .fact b { display: block; font-size: 19px; color: var(--accent); }
+  .fact span { font-size: 11px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; margin: 6px 0 10px; font-size: 12.5px; }
+  th, td { text-align: left; padding: 5px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .good { color: var(--good); font-weight: 600; }
+  footer { margin-top: 14px; padding-top: 8px; border-top: 1px solid var(--line);
+           font-size: 11px; color: var(--muted); display: flex; justify-content: space-between; }
+  @page { size: A4; margin: 12mm; }
+  @media print { body { padding: 0; max-width: none; } }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Enterprise Intelligence Control Tower</h1>
+  <p class="sub">Correlaciona execução, código, catálogo e custo para responder o que as
+     ferramentas isoladas não respondem: <strong>por que</strong> aconteceu, o que mudou,
+     quem é afetado e quanto custou.</p>
+</header>
+
+<h2>O caso demonstrado</h2>
+<p>Um job de vendas que rodava em minutos passou a levar <strong>26</strong>. A plataforma
+   detectou, correlacionou e diagnosticou sem intervenção humana.</p>
+
+<div class="facts">
+  <div class="fact"><b>5.7</b><span>fator de regressão sobre o baseline</span></div>
+  <div class="fact"><b>1</b><span>incidente para 2 execuções lentas</span></div>
+  <div class="fact"><b>0.9</b><span>confiança da hipótese correta</span></div>
+  <div class="fact"><b>0.0682</b><span>custo incremental (US$)</span></div>
+</div>
+
+<h2>O diagnóstico e suas evidências</h2>
+<table>
+  <tr><th>Evidência</th><th>O que mostra</th></tr>
+  <tr><td>Distribuição da chave</td><td>Um cliente concentra <strong>40</strong> % das linhas — 24 de 60 milhões</td></tr>
+  <tr><td>Plano de execução</td><td>Operador de janela novo, ausente na execução saudável</td></tr>
+  <tr><td>Mudança de código</td><td>O commit que introduziu a janela, com o arquivo alterado</td></tr>
+  <tr><td>Volume de entrada</td><td class="good">Não cresceu — descarta a explicação mais comum</td></tr>
+</table>
+<p>Hipóteses alternativas seguem visíveis em <strong>0.05</strong>, cada uma com a evidência
+   que a derruba. Nenhuma inferência passa de <strong>0.9</strong> sem confirmação humana.</p>
+
+<h2>Princípios de engenharia</h2>
+<table>
+  <tr><td><strong>Evidência antes de inferência</strong></td>
+      <td>O ranking é determinístico; o modelo de linguagem só redige, citando evidências que
+          existem. Na execução real a saída do modelo foi rejeitada e o texto determinístico assumiu.</td></tr>
+  <tr><td><strong>Fonte ausente é declarada</strong></td>
+      <td>O que não está disponível aparece como indisponível — nunca estimado em silêncio.</td></tr>
+  <tr><td><strong>Domínio independente de plataforma</strong></td>
+      <td>As regras rodam sem Spark e sem nuvem; um teste impede importar a plataforma no núcleo.</td></tr>
+  <tr><td><strong>Um incidente por causa</strong></td>
+      <td>Execuções lentas repetidas viram recorrência na linha do tempo, não novos alertas.</td></tr>
+</table>
+
+<h2>Maturidade</h2>
+<div class="facts">
+  <div class="fact"><b>100</b><span>testes automatizados</span></div>
+  <div class="fact"><b>96 %</b><span>cobertura do domínio</span></div>
+  <div class="fact"><b>3</b><span>ativos impactados via lineage</span></div>
+  <div class="fact"><b>8</b><span>bugs achados só em execução real</span></div>
+</div>
+<p>Validado em ambiente somente serverless, com restrições reais de plataforma — o que obrigou
+   a substituir a fonte de evidência planejada por instrumentação do próprio workload.</p>
+
+<footer>
+  <span>Números extraídos das tabelas da plataforma (demo/numbers.json)</span>
+  <span>github.com/JonatasLimaBR/enterprise-intelligence</span>
+</footer>
+
+</body>
+</html>

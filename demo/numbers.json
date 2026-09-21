@@ -1,0 +1,106 @@
+{
+  "collected_at": "2026-09-21T17:42:05+00:00",
+  "incident_id": "inc-0c5d5ba2c700",
+  "facts": {
+    "baseline_runs": {
+      "value": 12,
+      "label": "runs saudáveis no baseline",
+      "source": "workspace.eict_gold.run_features"
+    },
+    "baseline_p95_s": {
+      "value": 276,
+      "label": "p95 do baseline em segundos",
+      "source": "derivado: percentil 95 de run_features.duration_s dos runs saudáveis"
+    },
+    "baseline_fastest_s": {
+      "value": 148,
+      "label": "run saudável mais rápido",
+      "source": "workspace.eict_gold.run_features.duration_s"
+    },
+    "slow_run_s": {
+      "value": 1570,
+      "label": "run lento em segundos",
+      "source": "workspace.eict_gold.run_features.duration_s"
+    },
+    "slow_run_min": {
+      "value": 26,
+      "label": "run lento em minutos",
+      "source": "derivado: slow_run_s ÷ 60"
+    },
+    "regression_factor": {
+      "value": 5.7,
+      "label": "fator de regressão",
+      "source": "derivado: slow_run_s ÷ baseline_p95_s"
+    },
+    "incident_count": {
+      "value": 1,
+      "label": "incidentes abertos para os runs lentos",
+      "source": "workspace.eict_ops.incidents"
+    },
+    "slow_runs": {
+      "value": 2,
+      "label": "runs lentos atribuídos ao incidente",
+      "source": "workspace.eict_ops.incidents"
+    },
+    "top_hypothesis_confidence": {
+      "value": 0.9,
+      "label": "confiança da hipótese #1",
+      "source": "workspace.eict_ops.hypotheses.confidence WHERE rank=1"
+    },
+    "top_hypothesis_evidence": {
+      "value": 4,
+      "label": "evidências a favor da hipótese #1",
+      "source": "workspace.eict_ops.hypotheses.supporting WHERE rank=1"
+    },
+    "alternative_confidence": {
+      "value": 0.05,
+      "label": "confiança das hipóteses alternativas",
+      "source": "workspace.eict_ops.hypotheses.confidence WHERE rank>1"
+    },
+    "hypothesis_ceiling": {
+      "value": 0.9,
+      "label": "teto de confiança sem confirmação humana",
+      "source": "eict-platform/src/eict/domain/hypotheses.py::MAX_INFERRED_CONFIDENCE"
+    },
+    "hot_key_share": {
+      "value": 40,
+      "label": "percentual das linhas na chave quente",
+      "source": "workspace.eict_gold.run_features.top_key_share"
+    },
+    "input_rows_millions": {
+      "value": 60,
+      "label": "milhões de linhas processadas",
+      "source": "derivado: run_features.left_rows ÷ 1.000.000"
+    },
+    "hot_key_rows_millions": {
+      "value": 24,
+      "label": "milhões de linhas na chave quente",
+      "source": "derivado: run_features.max_key_rows ÷ 1.000.000"
+    },
+    "affected_assets": {
+      "value": 3,
+      "label": "ativos impactados via lineage",
+      "source": "workspace.eict_ops.incidents.affected_assets"
+    },
+    "incremental_cost_usd": {
+      "value": 0.0682,
+      "label": "custo incremental em dólares",
+      "source": "workspace.eict_ops.run_cost.incremental_cost_usd"
+    },
+    "domain_coverage_pct": {
+      "value": 96,
+      "label": "cobertura de testes do domínio",
+      "source": "pytest --cov=eict.domain (BUILD_REPORT)"
+    },
+    "test_count": {
+      "value": 100,
+      "label": "testes automatizados",
+      "source": "pytest -q (BUILD_REPORT)"
+    },
+    "runtime_bugs_found": {
+      "value": 8,
+      "label": "bugs encontrados só na execução real",
+      "source": "BUILD_REPORT_EICT_DATAOPS_DEMO.md#bugs-encontrados-apenas-na-execução-real"
+    }
+  }
+}

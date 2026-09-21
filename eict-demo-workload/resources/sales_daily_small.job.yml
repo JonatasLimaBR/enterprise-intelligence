@@ -1,0 +1,36 @@
+resources:
+  jobs:
+    sales_daily_small:
+      name: eict-demo-sales-daily-small-${bundle.target}
+      tags:
+        eict_monitor: "true"
+      max_concurrent_runs: 1
+      performance_target: STANDARD
+      parameters:
+        - name: git_sha
+          default: ${bundle.git.commit}
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+        - name: landing_dir
+          default: ${var.landing_dir}
+        - name: heavy
+          default: "false"
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+      tasks:
+        - task_key: build_sales_daily_small
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/sales_daily_small.py
+            source: WORKSPACE
+            parameters:
+              - "--catalog={{job.parameters.catalog}}"
+              - "--schema={{job.parameters.schema}}"
+              - "--landing-dir={{job.parameters.landing_dir}}"
+              - "--git-sha={{job.parameters.git_sha}}"
+              - "--run-id={{job.run_id}}"
+              - "--heavy={{job.parameters.heavy}}"

@@ -35,6 +35,7 @@ Implementado na demo: Python 3.11+, PySpark/Lakeflow, Delta, Databricks Asset Bu
 ├── roadmap/                # ROADMAP, BACKLOG, IMPLEMENTATION-PLAN
 ├── ux/                     # arquitetura de informação, catálogo de 86 telas, contratos críticos
 ├── templates/              # ADR, incidente, postmortem, data contract (YAML)
+├── demo/                   # KIT: roteiro, scripts de reset/gatilho, deck, arquitetura, verificador
 ├── eict-platform/          # CÓDIGO: bundle da plataforma (domínio puro, adapters, jobs, pipeline, app)
 └── eict-demo-workload/     # CÓDIGO: bundle do job encenado + gerador de dados + cenário
 ```
@@ -62,7 +63,8 @@ Implementado na demo: Python 3.11+, PySpark/Lakeflow, Delta, Databricks Asset Bu
 - **Idioma:** documentação em pt-BR
 - **Nomenclatura:** `PRD-NNN-*`, `ADR-NNN-*`, `SPEC-NNN-*`; novas ADRs a partir de `templates/ADR-TEMPLATE.md`
 - **Linter:** `ruff` (config em `eict-platform/pyproject.toml`, line-length 120)
-- **Testes:** `pytest` — `cd eict-platform && .venv/Scripts/python -m pytest -q` (testes de Spark ficam atrás do marcador `spark`)
+- **Testes:** `pytest` — plataforma: `cd eict-platform && .venv/Scripts/python -m pytest -q`; kit: `eict-platform/.venv/Scripts/python -m pytest demo/tests -q`
+- **Números da demo:** todos saem de `demo/numbers.json`; `demo/verify_demo.py` reprova documento que cite número sem origem
 - **Databricks:** profile do CLI definido em `~/.databrickscfg` (ex.: `eict`), workspace **só serverless**; sempre passar `--profile eict`
 - **Commits (planejado):** conventional commits, trunk-based, SBOM e dependências pinadas
 
@@ -100,6 +102,7 @@ databricks bundle deploy   -t dev --profile eict
 | Console | https://eict-console-dev-7474644308924051.aws.databricksapps.com |
 | Pendências | Jira (SC4) e medição de latência SC5 |
 | Arquivo do ciclo | `.claude/sdd/archive/EICT_DATAOPS_DEMO/SHIPPED_2026-09-21.md` (fora do versionamento) |
+| Kit de apresentação | `demo/` — `reset_demo.sh` restaura o estado real em ~20s; ver `demo/README.md` |
 
 **Resultado medido:** baseline de 5 runs (168–280s, p95 276s) contra 2 runs lentos (1.570s e 1.547s) → 1 incidente idempotente, 4 evidências (skew na chave, operador `Window` novo no plano, commit `9872c00`, volume estável), impacto no dashboard AI/BI via lineage e custo incremental de US$ 0,0682. A saída do LLM foi **rejeitada pela validação** e a narrativa caiu no fallback determinístico.
 

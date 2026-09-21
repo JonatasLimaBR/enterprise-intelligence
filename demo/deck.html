@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EICT — da regressão ao diagnóstico</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --fg: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --good: #3fb950;
+    --bad: #f85149;
+    --line: #21262d;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--fg);
+    font: 18px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  section {
+    display: none; min-height: 100vh; padding: 7vh 8vw 10vh;
+    animation: fade .25s ease-out;
+  }
+  section.active { display: flex; flex-direction: column; justify-content: center; }
+  @keyframes fade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; } }
+  h1 { font-size: clamp(2rem, 5vw, 3.4rem); line-height: 1.15; margin: 0 0 1.5rem; }
+  h2 { font-size: clamp(1.4rem, 3vw, 2.2rem); margin: 0 0 1.2rem; color: var(--accent); }
+  p { max-width: 62ch; margin: 0 0 1rem; }
+  .lead { font-size: 1.15rem; color: var(--muted); }
+  .fact { font-size: clamp(2.6rem, 7vw, 4.6rem); font-weight: 700; color: var(--accent); line-height: 1; }
+  .fact small { display: block; font-size: 1rem; font-weight: 400; color: var(--muted); margin-top: .6rem; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1.5rem; margin: 1.5rem 0; }
+  .card { border: 1px solid var(--line); border-radius: 10px; padding: 1.2rem; background: #11161d; }
+  .card h3 { margin: 0 0 .5rem; font-size: 1rem; color: var(--accent); }
+  .card p { font-size: .95rem; margin: 0; color: var(--fg); }
+  ul { max-width: 62ch; padding-left: 1.2rem; }
+  li { margin-bottom: .6rem; }
+  .good { color: var(--good); }
+  .bad { color: var(--bad); }
+  .source { font-size: .78rem; color: var(--muted); margin-top: 2rem; }
+  img { max-width: 100%; border: 1px solid var(--line); border-radius: 10px; margin-top: 1rem; }
+  footer {
+    position: fixed; bottom: 0; left: 0; right: 0; padding: .8rem 8vw;
+    display: flex; justify-content: space-between; font-size: .8rem; color: var(--muted);
+    border-top: 1px solid var(--line); background: var(--bg);
+  }
+  @media print { section { display: block !important; page-break-after: always; } footer { display: none; } }
+</style>
+</head>
+<body>
+
+<section class="active">
+  <h1>Um job de vendas passou a levar<br><span style="color:var(--accent)">26 minutos</span></h1>
+  <p class="lead">O Spark UI mostra o número. Ninguém mostra a causa.</p>
+  <p class="lead">Esta é a diferença entre monitorar e operar.</p>
+</section>
+
+<section>
+  <h2>O que existe hoje</h2>
+  <p>Para responder “por quê”, alguém abre cinco abas — execução, plano, Git, catálogo e
+     faturamento — e cruza tudo de cabeça.</p>
+  <p>Leva de dezenas de minutos a horas, e o resultado depende de quem está de plantão.</p>
+  <p class="lead">A plataforma faz esse cruzamento em minutos, e mostra o caminho inteiro.</p>
+</section>
+
+<section>
+  <h2>Um incidente, não uma enxurrada</h2>
+  <div class="grid">
+    <div class="card"><h3>Execuções lentas</h3><p class="fact" style="font-size:2.4rem">2</p></div>
+    <div class="card"><h3>Incidentes abertos</h3><p class="fact" style="font-size:2.4rem">1</p></div>
+    <div class="card"><h3>Recorrência</h3><p>entra na linha do tempo do mesmo incidente</p></div>
+  </div>
+  <p>A chave de correlação combina o job e o tipo de problema. Repetição não vira alerta novo.</p>
+  <img src="img/01-lista-incidentes.png" alt="Lista de incidentes no console">
+</section>
+
+<section>
+  <h2>O diagnóstico: quatro evidências</h2>
+  <div class="grid">
+    <div class="card"><h3>Dados</h3><p>Um cliente concentra <strong>40</strong> % das linhas — 24 de 60 milhões</p></div>
+    <div class="card"><h3>Plano</h3><p>Operador <code>Window</code> novo, ausente no run saudável</p></div>
+    <div class="card"><h3>Mudança</h3><p>O commit que introduziu a janela, com o arquivo alterado</p></div>
+    <div class="card"><h3>Volume</h3><p class="good">Entrada não cresceu — descarta a hipótese mais comum</p></div>
+  </div>
+  <img src="img/02-rca-evidencias.png" alt="Hipótese com as quatro evidências">
+</section>
+
+<section>
+  <h2>Por que isso não é chute</h2>
+  <ul>
+    <li>Hipóteses alternativas continuam visíveis em <strong>0.05</strong>, cada uma com a
+        evidência <span class="bad">contra</span> que a derruba.</li>
+    <li>Nenhuma inferência passa de <strong>0.9</strong> — o teto está no código, não numa recomendação.</li>
+    <li>Confirmar a causa é ato humano, e fica registrado com autor e horário.</li>
+  </ul>
+  <p class="lead">Uma ferramenta que só mostra a resposta certa não dá para auditar.</p>
+</section>
+
+<section>
+  <h2>Impacto e custo</h2>
+  <div class="grid">
+    <div class="card"><h3>Ativos afetados</h3><p class="fact" style="font-size:2.4rem">3</p>
+      <p>tabela, job e o painel de vendas — via lineage do catálogo</p></div>
+    <div class="card"><h3>Custo incremental</h3><p class="fact" style="font-size:2.4rem">0.0682</p>
+      <p>dólares, vindos da tabela de faturamento</p></div>
+  </div>
+  <p>Quando o faturamento ainda não chegou, o campo aparece como indisponível. Nunca estimado.</p>
+</section>
+
+<section>
+  <h2>O guardrail da IA</h2>
+  <p>O resumo do incidente foi escrito <strong>por regra</strong>.</p>
+  <p>O modelo de linguagem respondeu, mas a resposta foi <span class="bad">rejeitada</span> na
+     validação: cada frase precisa citar o identificador de uma evidência que exista.</p>
+  <p class="lead">A IA redige. As regras e a pessoa decidem o que é verdade.</p>
+</section>
+
+<section>
+  <h1>É software, não slide</h1>
+  <div class="grid">
+    <div class="card"><h3>Testes</h3><p class="fact" style="font-size:2.2rem">100</p></div>
+    <div class="card"><h3>Cobertura do domínio</h3><p class="fact" style="font-size:2.2rem">96 %</p></div>
+    <div class="card"><h3>Fator de regressão</h3><p class="fact" style="font-size:2.2rem">5.7</p></div>
+  </div>
+  <p><strong>8</strong> dos problemas mais relevantes só apareceram rodando de verdade.
+     Nenhum teste local os teria encontrado — e todos viraram teste depois.</p>
+  <p class="source">Todos os números vêm de consulta às tabelas da plataforma (demo/numbers.json).</p>
+</section>
+
+<footer>
+  <span>EICT — Enterprise Intelligence Control Tower</span>
+  <span><span id="current">1</span> / <span id="total">8</span> · use ← →</span>
+</footer>
+
+<script>
+  const slides = Array.from(document.querySelectorAll('section'));
+  const current = document.getElementById('current');
+  document.getElementById('total').textContent = slides.length;
+  let index = 0;
+
+  const show = next => {
+    index = Math.max(0, Math.min(slides.length - 1, next));
+    slides.forEach((slide, position) => slide.classList.toggle('active', position === index));
+    current.textContent = index + 1;
+    location.hash = index + 1;
+  };
+
+  addEventListener('keydown', event => {
+    if (['ArrowRight', 'PageDown', ' '].includes(event.key)) { event.preventDefault(); show(index + 1); }
+    if (['ArrowLeft', 'PageUp'].includes(event.key)) { event.preventDefault(); show(index - 1); }
+    if (event.key === 'Home') show(0);
+    if (event.key === 'End') show(slides.length - 1);
+  });
+  addEventListener('click', () => show(index + 1));
+
+  const fromHash = parseInt(location.hash.slice(1), 10);
+  show(Number.isFinite(fromHash) ? fromHash - 1 : 0);
+</script>
+</body>
+</html>
