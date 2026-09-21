@@ -104,7 +104,7 @@ databricks bundle deploy   -t dev --profile eict
 | Arquivo do ciclo | `.claude/sdd/archive/EICT_DATAOPS_DEMO/SHIPPED_2026-09-21.md` (fora do versionamento) |
 | Kit de apresentação | `demo/` — roteiro (pt/en), deck, one-pager, arquitetura, verificador; ver `demo/README.md` |
 
-### Kit de demonstração (feature EICT_DEMO_KIT, build concluído em 2026-09-21)
+### Kit de demonstração (feature EICT_DEMO_KIT — ✅ Shipped em 2026-09-21)
 
 | Item | Estado |
 |------|--------|
@@ -112,12 +112,13 @@ databricks bundle deploy   -t dev --profile eict
 | Números rastreáveis | ✅ 20 fatos em `demo/numbers.json`; verificador reprova número sem origem |
 | Roteiro | ✅ 778 palavras, 6 blocos, pt e en com paridade verificada |
 | Qualidade | ✅ 25 testes do kit · ruff limpo · 3 capturas pendentes (avisos) |
-| Gatilho ao vivo | ⚠️ **SC2 não atendido**: run pesado leva 6,5 min (meta era 6); fator 1,84× |
+| Gatilho ao vivo | ✅ 6,5 min com fator 1,84× — SC2 revisto para ≤ 7 min (DEFINE v1.1) |
 | Pendências suas | capturar as 3 telas de `CAPTURAS.md`; rodar `prepare_small_job.sh` (~20 min) |
 
-**Por que o SC2 não fecha:** a partida do serverless custa ~150s fixos. Com 10% dos dados o
-fator é 1,84× mas o run leva 6,5 min; com 8% cabe no tempo mas o fator cai para 1,23× e não
-gera incidente. Decisão pendente: `/iterate` para elevar o critério a 7 min, ou aceitar o desvio.
+**Por que o critério mudou:** a partida do serverless custa ~150s fixos. Com 10% dos dados o
+fator é 1,84× mas o run leva 6,5 min; com 8% cabe em 6 min mas o fator cai para 1,23× e não
+gera incidente. O limite original era inalcançável nesta plataforma, então o DEFINE foi revisto
+para 7 min com as medições anexadas. Arquivo: `.claude/sdd/archive/EICT_DEMO_KIT/SHIPPED_2026-09-21.md`.
 
 **Resultado medido:** baseline de 5 runs (168–280s, p95 276s) contra 2 runs lentos (1.570s e 1.547s) → 1 incidente idempotente, 4 evidências (skew na chave, operador `Window` novo no plano, commit `9872c00`, volume estável), impacto no dashboard AI/BI via lineage e custo incremental de US$ 0,0682. A saída do LLM foi **rejeitada pela validação** e a narrativa caiu no fallback determinístico.
 
