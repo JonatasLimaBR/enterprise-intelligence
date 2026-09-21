@@ -7,11 +7,13 @@ dependencies = [
     "pydantic>=2.7",
     "databricks-sdk[openai]>=0.30",
     "requests>=2.32",
+    "pyyaml>=6.0",
 ]
 
 [project.scripts]
 bootstrap = "eict.jobs.bootstrap_ops:main"
 collect = "eict.jobs.collect:main"
+quality = "eict.jobs.quality:main"
 correlate = "eict.jobs.correlate:main"
 narrate = "eict.jobs.narrate:main"
 dispatch = "eict.jobs.dispatch:main"

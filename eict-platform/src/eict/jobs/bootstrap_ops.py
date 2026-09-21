@@ -29,7 +29,7 @@ TABLES: dict[tuple[str, str], str] = {
         correlation_key STRING NOT NULL,
         incident_id STRING,
         tenant_id STRING,
-        job_id STRING,
+        subject STRING,
         type STRING,
         state STRING,
         severity STRING,
@@ -39,6 +39,7 @@ TABLES: dict[tuple[str, str], str] = {
         updated_at TIMESTAMP,
         affected_assets ARRAY<STRING>,
         ticket_refs ARRAY<STRING>,
+        declared_consumers ARRAY<STRING>,
         version INT
     """,
     ("ops", "incident_timeline"): """
@@ -137,7 +138,42 @@ TABLES: dict[tuple[str, str], str] = {
         detail STRING,
         checked_at TIMESTAMP
     """,
+    ("ops", "rule_results"): """
+        result_id STRING NOT NULL,
+        contract_id STRING,
+        rule_id STRING,
+        asset STRING,
+        dimension STRING,
+        status STRING,
+        numerator BIGINT,
+        denominator BIGINT,
+        ratio DOUBLE,
+        threshold STRING,
+        severity STRING,
+        window STRING,
+        query_hash STRING,
+        sample_json STRING,
+        error_message STRING,
+        evaluated_at TIMESTAMP
+    """,
+    ("ops", "contracts"): """
+        contract_id STRING NOT NULL,
+        version STRING,
+        status STRING,
+        owner STRING,
+        producer STRING,
+        asset STRING,
+        classification STRING,
+        declared_consumers ARRAY<STRING>,
+        rule_count INT,
+        loaded_at TIMESTAMP
+    """,
 }
+
+MIGRATIONS = (
+    ("ops", "incidents", "RENAME COLUMN job_id TO subject"),
+    ("ops", "incidents", "ADD COLUMN declared_consumers ARRAY<STRING>"),
+)
 
 
 def ensure_schemas(spark: Any, settings: Settings) -> None:
@@ -154,6 +190,18 @@ def ensure_tables(spark: Any, settings: Settings) -> None:
         spark.sql(
             f"CREATE TABLE IF NOT EXISTS {settings.table(layer, name)} ({columns}) USING DELTA"
         )
+
+
+def apply_migrations(spark: Any, settings: Settings) -> list[str]:
+    """Migrações aditivas e idempotentes: o que já foi aplicado falha e é ignorado."""
+    applied: list[str] = []
+    for layer, table, clause in MIGRATIONS:
+        try:
+            spark.sql(f"ALTER TABLE {settings.table(layer, table)} {clause}")
+            applied.append(f"{table}: {clause}")
+        except Exception as exc:
+            logger.debug("migração já aplicada ou inaplicável (%s): %s", clause, exc)
+    return applied
 
 
 def ensure_gold_view(spark: Any, settings: Settings) -> bool:
@@ -177,6 +225,8 @@ def main(argv: list[str] | None = None) -> None:
     ensure_schemas(spark, settings)
     ensure_volume(spark, settings)
     ensure_tables(spark, settings)
+    for migration in apply_migrations(spark, settings):
+        logger.info("migração aplicada: %s", migration)
     ensure_gold_view(spark, settings)
     logger.info("bootstrap complete for catalog %s", settings.catalog)
 

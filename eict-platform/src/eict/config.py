@@ -19,6 +19,7 @@ class Settings:
     jira_base_url: str = ""
     jira_project: str = ""
     llm_endpoint: str = ""
+    contracts_dir: str = ""
 
     def table(self, layer: str, name: str) -> str:
         return f"{self.catalog}.{self.schema_prefix}{layer}.{name}"
@@ -42,6 +43,7 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
     parser.add_argument("--jira-base-url", default="")
     parser.add_argument("--jira-project", default="")
     parser.add_argument("--llm-endpoint", default="")
+    parser.add_argument("--contracts-dir", default="")
     known, _ = parser.parse_known_args(argv)
     return Settings(
         catalog=known.catalog,
@@ -53,4 +55,5 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
         jira_base_url=known.jira_base_url,
         jira_project=known.jira_project,
         llm_endpoint=known.llm_endpoint,
+        contracts_dir=known.contracts_dir,
     )

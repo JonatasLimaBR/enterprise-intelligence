@@ -1,0 +1,50 @@
+contract_id: workspace.eict_workload.customers
+version: 1.0.0
+status: active
+owner: dados@exemplo.com
+producer: eict-demo-generate-data
+asset: workspace.eict_workload.customers
+classification: internal
+
+consumers:
+  - workspace.eict_workload.orders
+  - workspace.eict_workload.sales_daily
+
+slo:
+  freshness: 7d
+  availability: "99.0%"
+
+columns:
+  - name: customer_id
+    type: string
+    required: true
+  - name: customer_name
+    type: string
+    required: true
+  - name: region
+    type: string
+    required: true
+
+quality:
+  - rule_id: customers_customer_id_unique
+    dimension: uniqueness
+    expression: customer_id
+    threshold: ">= 100%"
+    severity: blocking
+    owner: dados@exemplo.com
+    description: Chave duplicada multiplica linhas em todo join downstream.
+
+  - rule_id: customers_region_not_null
+    dimension: completeness
+    expression: region
+    threshold: ">= 100%"
+    severity: warning
+    owner: dados@exemplo.com
+    description: Região nula quebra a agregação regional do painel comercial.
+
+  - rule_id: customers_schema_stable
+    dimension: schema
+    threshold: ">= 100%"
+    severity: blocking
+    owner: dados@exemplo.com
+    description: A tabela é dimensão de referência; mudança silenciosa afeta todos.

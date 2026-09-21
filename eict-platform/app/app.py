@@ -177,7 +177,7 @@ if not incidents:
     st.stop()
 
 labels = {
-    f"{incident['job_id']} · {incident['state']} · {incident['detected_at']:%d/%m %H:%M}": incident
+    f"{incident['subject']} · {incident['state']} · {incident['detected_at']:%d/%m %H:%M}": incident
     for incident in incidents
 }
 selected_label = st.sidebar.radio("Incidentes", list(labels))
@@ -215,7 +215,7 @@ healthy_rows = query(
     f"SELECT * FROM {table('gold', 'run_features')} "
     "WHERE job_id = :job_id AND result_state = 'SUCCESS' AND end_time < :before "
     "ORDER BY end_time DESC LIMIT 1",
-    {"job_id": incident["job_id"], "before": incident["detected_at"]},
+    {"job_id": incident["subject"], "before": incident["detected_at"]},
 )
 render_diff(healthy_rows[0] if healthy_rows else None, current)
 

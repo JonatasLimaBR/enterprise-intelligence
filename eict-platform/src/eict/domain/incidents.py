@@ -8,6 +8,8 @@ from eict.domain.baseline import Baseline
 from eict.domain.models import Hypothesis, Incident, Run, TimelineEntry, stable_id
 
 RUNTIME_REGRESSION = "runtime_regression"
+CONTRACT_VIOLATION = "contract_violation"
+QUALITY_ENGINE_FAILURE = "quality_engine_failure"
 DEFAULT_SEVERITY = "high"
 
 
@@ -20,33 +22,34 @@ class Review:
     note: str = ""
 
 
-def correlation_key(tenant_id: str, job_id: str, incident_type: str, first_run_id: str) -> str:
-    raw = f"{tenant_id}|{job_id}|{incident_type}|{first_run_id}"
+def correlation_key(tenant_id: str, subject: str, incident_type: str, first_event_id: str) -> str:
+    """Identidade do incidente. `subject` é o job em runtime e o ativo em qualidade."""
+    raw = f"{tenant_id}|{subject}|{incident_type}|{first_event_id}"
     return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
 
 def open_or_update(
     open_incidents: list[Incident],
     tenant_id: str,
-    job_id: str,
+    subject: str,
     incident_type: str,
     run: Run,
 ) -> tuple[Incident, bool]:
     for incident in open_incidents:
         matches = (
             incident.tenant_id == tenant_id
-            and incident.job_id == job_id
+            and incident.subject == subject
             and incident.type == incident_type
         )
         if matches and incident.is_active:
             return incident.touch(run), False
 
-    key = correlation_key(tenant_id, job_id, incident_type, run.run_id)
+    key = correlation_key(tenant_id, subject, incident_type, run.run_id)
     incident = Incident(
         incident_id=stable_id("inc", key),
         correlation_key=key,
         tenant_id=tenant_id,
-        job_id=job_id,
+        subject=subject,
         type=incident_type,
         state="detected",
         severity=DEFAULT_SEVERITY,
@@ -54,6 +57,42 @@ def open_or_update(
         last_run_id=run.run_id,
         detected_at=run.end_time,
         updated_at=run.end_time,
+    )
+    return incident, True
+
+
+def open_or_update_for_asset(
+    open_incidents: list[Incident],
+    tenant_id: str,
+    asset: str,
+    incident_type: str,
+    first_result_id: str,
+    at: datetime,
+    severity: str = DEFAULT_SEVERITY,
+) -> tuple[Incident, bool]:
+    """Versão para qualidade: o assunto é o ativo e o evento é o resultado da regra."""
+    for incident in open_incidents:
+        matches = (
+            incident.tenant_id == tenant_id
+            and incident.subject == asset
+            and incident.type == incident_type
+        )
+        if matches and incident.is_active:
+            return incident.touch_at(first_result_id, at), False
+
+    key = correlation_key(tenant_id, asset, incident_type, first_result_id)
+    incident = Incident(
+        incident_id=stable_id("inc", key),
+        correlation_key=key,
+        tenant_id=tenant_id,
+        subject=asset,
+        type=incident_type,
+        state="detected",
+        severity=severity,
+        first_run_id=first_result_id,
+        last_run_id=first_result_id,
+        detected_at=at,
+        updated_at=at,
     )
     return incident, True
 

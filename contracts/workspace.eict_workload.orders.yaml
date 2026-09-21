@@ -1,0 +1,72 @@
+contract_id: workspace.eict_workload.orders
+version: 1.0.0
+status: active
+owner: dados@exemplo.com
+producer: eict-demo-generate-data
+asset: workspace.eict_workload.orders
+classification: internal
+
+consumers:
+  - workspace.eict_workload.sales_daily
+  - eict-demo-sales-daily
+
+slo:
+  freshness: 24h
+  availability: "99.0%"
+
+columns:
+  - name: order_id
+    type: string
+    required: true
+  - name: customer_id
+    type: string
+    required: true
+  - name: order_ts
+    type: timestamp
+    required: true
+  - name: order_date
+    type: date
+    required: true
+  - name: amount
+    type: double
+    required: true
+
+quality:
+  - rule_id: orders_customer_id_not_null
+    dimension: completeness
+    expression: customer_id
+    threshold: ">= 99.9%"
+    severity: critical
+    owner: dados@exemplo.com
+    description: Todo pedido precisa de cliente para ser atribuído a uma conta.
+
+  - rule_id: orders_order_id_unique
+    dimension: uniqueness
+    expression: order_id
+    threshold: ">= 100%"
+    severity: critical
+    owner: dados@exemplo.com
+    description: Pedido duplicado contamina receita e contagem de clientes.
+
+  - rule_id: orders_amount_positive
+    dimension: validity
+    expression: amount > 0
+    threshold: ">= 99.99%"
+    severity: warning
+    owner: dados@exemplo.com
+    description: Valor não positivo indica erro de origem ou estorno mal classificado.
+
+  - rule_id: orders_customer_exists
+    dimension: referential
+    expression: customer_id in workspace.eict_workload.customers.customer_id
+    threshold: ">= 99.99%"
+    severity: critical
+    owner: dados@exemplo.com
+    description: Pedido órfão quebra qualquer agregação por cliente.
+
+  - rule_id: orders_schema_stable
+    dimension: schema
+    threshold: ">= 100%"
+    severity: blocking
+    owner: dados@exemplo.com
+    description: Remoção de coluna ou troca de tipo quebra consumidores sem aviso.

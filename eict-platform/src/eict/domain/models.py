@@ -182,7 +182,7 @@ class Incident:
     incident_id: str
     correlation_key: str
     tenant_id: str
-    job_id: str
+    subject: str
     type: str
     state: str
     severity: str
@@ -192,11 +192,25 @@ class Incident:
     updated_at: datetime
     affected_assets: tuple[str, ...] = ()
     ticket_refs: tuple[str, ...] = ()
+    declared_consumers: tuple[str, ...] = ()
     version: int = 1
 
     @property
     def is_active(self) -> bool:
         return self.state in ACTIVE_INCIDENT_STATES
+
+    @property
+    def job_id(self) -> str:
+        """Compatibilidade: para incidentes de runtime o subject é o job."""
+        return self.subject
+
+    @property
+    def undeclared_consumers(self) -> tuple[str, ...]:
+        return tuple(sorted(set(self.affected_assets) - set(self.declared_consumers)))
+
+    @property
+    def unseen_declared_consumers(self) -> tuple[str, ...]:
+        return tuple(sorted(set(self.declared_consumers) - set(self.affected_assets)))
 
     def touch(self, run: Run) -> Incident:
         return replace(
@@ -206,8 +220,14 @@ class Incident:
             version=self.version + 1,
         )
 
+    def touch_at(self, event_id: str, at: datetime) -> Incident:
+        return replace(self, last_run_id=event_id, updated_at=at, version=self.version + 1)
+
     def with_assets(self, assets: tuple[str, ...]) -> Incident:
         return replace(self, affected_assets=assets, version=self.version + 1)
+
+    def with_declared_consumers(self, consumers: tuple[str, ...]) -> Incident:
+        return replace(self, declared_consumers=consumers, version=self.version + 1)
 
     def with_ticket(self, ticket_ref: str) -> Incident:
         if ticket_ref in self.ticket_refs:
@@ -238,3 +258,49 @@ class RunCost:
     baseline_cost_usd: float | None = None
     incremental_cost_usd: float | None = None
     source_ref: str | None = None
+
+
+@dataclass(frozen=True)
+class RuleResult:
+    result_id: str
+    contract_id: str
+    rule_id: str
+    asset: str
+    dimension: str
+    status: str
+    threshold: str
+    severity: str
+    window: str
+    query_hash: str
+    evaluated_at: datetime
+    numerator: int = 0
+    denominator: int = 0
+    sample: tuple[str, ...] = ()
+    error_message: str | None = None
+    detail: str = ""
+
+    @property
+    def ratio(self) -> float:
+        return self.numerator / self.denominator if self.denominator else 0.0
+
+    @property
+    def is_violation(self) -> bool:
+        return self.status == "violated"
+
+    @property
+    def is_error(self) -> bool:
+        return self.status == "evaluation_error"
+
+    @property
+    def is_blocking(self) -> bool:
+        return self.is_violation and self.severity == "blocking"
+
+    def summary(self) -> str:
+        if self.is_error:
+            return f"{self.rule_id}: não foi possível avaliar ({self.error_message})"
+        if self.detail:
+            return f"{self.rule_id}: {self.detail}"
+        return (
+            f"{self.rule_id}: {self.numerator} de {self.denominator} linhas "
+            f"({self.ratio:.2%}) contra limite {self.threshold}"
+        )

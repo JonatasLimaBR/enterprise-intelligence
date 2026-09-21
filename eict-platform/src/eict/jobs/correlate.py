@@ -59,7 +59,7 @@ def load_active_incidents(spark: Any, settings: Settings) -> list[Incident]:
             incident_id=record["incident_id"],
             correlation_key=record["correlation_key"],
             tenant_id=record["tenant_id"],
-            job_id=record["job_id"],
+            subject=record["subject"],
             type=record["type"],
             state=record["state"],
             severity=record["severity"],
@@ -69,6 +69,7 @@ def load_active_incidents(spark: Any, settings: Settings) -> list[Incident]:
             updated_at=record["updated_at"],
             affected_assets=tuple(record.get("affected_assets") or ()),
             ticket_refs=tuple(record.get("ticket_refs") or ()),
+            declared_consumers=tuple(record.get("declared_consumers") or ()),
             version=int(record.get("version") or 1),
         )
         for record in records

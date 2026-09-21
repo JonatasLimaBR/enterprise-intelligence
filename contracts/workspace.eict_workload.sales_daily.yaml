@@ -1,0 +1,64 @@
+contract_id: workspace.eict_workload.sales_daily
+version: 1.0.0
+status: active
+owner: comercial-dados@exemplo.com
+producer: eict-demo-sales-daily
+asset: workspace.eict_workload.sales_daily
+classification: internal
+
+consumers:
+  - Comercial - Vendas Diárias (dashboard AI/BI)
+  - comercial@exemplo.com
+
+slo:
+  freshness: 30m
+  availability: "99.5%"
+  delivery_time: "07:30 America/Sao_Paulo"
+
+columns:
+  - name: order_date
+    type: date
+    required: true
+  - name: region
+    type: string
+    required: true
+  - name: revenue
+    type: double
+    required: true
+  - name: orders
+    type: bigint
+    required: true
+  - name: customers
+    type: bigint
+    required: true
+
+quality:
+  - rule_id: sales_daily_fresh
+    dimension: freshness
+    threshold: "<= 30m"
+    severity: critical
+    owner: comercial-dados@exemplo.com
+    window: current_state
+    description: O painel comercial é consultado ao longo do dia; dado parado engana decisão.
+
+  - rule_id: sales_daily_volume_stable
+    dimension: volume
+    threshold: ">= 0.7"
+    severity: warning
+    owner: comercial-dados@exemplo.com
+    description: Queda abrupta de linhas costuma indicar filtro acidental ou join perdido.
+
+  - rule_id: sales_daily_revenue_positive
+    dimension: validity
+    expression: revenue >= 0
+    threshold: ">= 100%"
+    severity: critical
+    owner: comercial-dados@exemplo.com
+    description: Receita negativa no agregado indica erro de cálculo, não estorno.
+
+  - rule_id: sales_daily_schema_stable
+    dimension: schema
+    threshold: ">= 100%"
+    severity: blocking
+    owner: comercial-dados@exemplo.com
+    description: O dashboard referencia colunas por nome; remoção quebra a tela.

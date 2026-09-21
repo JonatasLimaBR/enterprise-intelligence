@@ -82,7 +82,7 @@ def incident_row(incident: Incident) -> dict:
         "correlation_key": incident.correlation_key,
         "incident_id": incident.incident_id,
         "tenant_id": incident.tenant_id,
-        "job_id": incident.job_id,
+        "subject": incident.subject,
         "type": incident.type,
         "state": incident.state,
         "severity": incident.severity,
@@ -92,6 +92,7 @@ def incident_row(incident: Incident) -> dict:
         "updated_at": incident.updated_at,
         "affected_assets": list(incident.affected_assets),
         "ticket_refs": list(incident.ticket_refs),
+        "declared_consumers": list(incident.declared_consumers),
         "version": incident.version,
     }
 
