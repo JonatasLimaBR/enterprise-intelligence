@@ -89,7 +89,7 @@ databricks bundle deploy   -t dev --profile eict
 
 ---
 
-## Estado da demo (feature EICT_DATAOPS_DEMO)
+## Estado da demo (feature EICT_DATAOPS_DEMO — ✅ Shipped em 2026-09-21)
 
 | Item | Estado |
 |------|--------|
@@ -99,6 +99,7 @@ databricks bundle deploy   -t dev --profile eict
 | Cenário fim a fim | ✅ regressão de **5,6×** detectada; RCA com hipótese correta em 1º e confiança 0,90 |
 | Console | https://eict-console-dev-7474644308924051.aws.databricksapps.com |
 | Pendências | Jira (SC4) e medição de latência SC5 |
+| Arquivo do ciclo | `.claude/sdd/archive/EICT_DATAOPS_DEMO/SHIPPED_2026-09-21.md` (fora do versionamento) |
 
 **Resultado medido:** baseline de 5 runs (168–280s, p95 276s) contra 2 runs lentos (1.570s e 1.547s) → 1 incidente idempotente, 4 evidências (skew na chave, operador `Window` novo no plano, commit `9872c00`, volume estável), impacto no dashboard AI/BI via lineage e custo incremental de US$ 0,0682. A saída do LLM foi **rejeitada pela validação** e a narrativa caiu no fallback determinístico.
 
