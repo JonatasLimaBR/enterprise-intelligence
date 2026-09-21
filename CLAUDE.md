@@ -102,7 +102,22 @@ databricks bundle deploy   -t dev --profile eict
 | Console | https://eict-console-dev-7474644308924051.aws.databricksapps.com |
 | Pendências | Jira (SC4) e medição de latência SC5 |
 | Arquivo do ciclo | `.claude/sdd/archive/EICT_DATAOPS_DEMO/SHIPPED_2026-09-21.md` (fora do versionamento) |
-| Kit de apresentação | `demo/` — `reset_demo.sh` restaura o estado real em ~20s; ver `demo/README.md` |
+| Kit de apresentação | `demo/` — roteiro (pt/en), deck, one-pager, arquitetura, verificador; ver `demo/README.md` |
+
+### Kit de demonstração (feature EICT_DEMO_KIT, build concluído em 2026-09-21)
+
+| Item | Estado |
+|------|--------|
+| Reset do estado | ✅ **20s** medidos (limite 60s) — `reset_demo.sh` restaura snapshot real |
+| Números rastreáveis | ✅ 20 fatos em `demo/numbers.json`; verificador reprova número sem origem |
+| Roteiro | ✅ 778 palavras, 6 blocos, pt e en com paridade verificada |
+| Qualidade | ✅ 25 testes do kit · ruff limpo · 3 capturas pendentes (avisos) |
+| Gatilho ao vivo | ⚠️ **SC2 não atendido**: run pesado leva 6,5 min (meta era 6); fator 1,84× |
+| Pendências suas | capturar as 3 telas de `CAPTURAS.md`; rodar `prepare_small_job.sh` (~20 min) |
+
+**Por que o SC2 não fecha:** a partida do serverless custa ~150s fixos. Com 10% dos dados o
+fator é 1,84× mas o run leva 6,5 min; com 8% cabe no tempo mas o fator cai para 1,23× e não
+gera incidente. Decisão pendente: `/iterate` para elevar o critério a 7 min, ou aceitar o desvio.
 
 **Resultado medido:** baseline de 5 runs (168–280s, p95 276s) contra 2 runs lentos (1.570s e 1.547s) → 1 incidente idempotente, 4 evidências (skew na chave, operador `Window` novo no plano, commit `9872c00`, volume estável), impacto no dashboard AI/BI via lineage e custo incremental de US$ 0,0682. A saída do LLM foi **rejeitada pela validação** e a narrativa caiu no fallback determinístico.
 
