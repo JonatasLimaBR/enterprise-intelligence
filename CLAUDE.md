@@ -126,7 +126,7 @@ para 7 min com as medições anexadas. Arquivo: `.claude/sdd/archive/EICT_DEMO_K
 
 **Restrições do workspace usado na demo:** só compute serverless (sem cluster clássico, sem Spark event logs, Spark confs limitadas — por isso a evidência de skew vem do run profile instrumentado); `system.billing.*` não é legível pelo usuário no editor SQL, mas **é** pela identidade do job — o custo funciona.
 
-### Camada de contratos (feature EICT_DATA_CONTRACTS, em build)
+### Camada de contratos (feature EICT_DATA_CONTRACTS — build concluído em 2026-09-22)
 
 | Item | Estado |
 |------|--------|
@@ -135,13 +135,28 @@ para 7 min com as medições anexadas. Arquivo: `.claude/sdd/archive/EICT_DEMO_K
 | `evaluation_error` | ✅ falha de execução nunca vira violação; abre incidente `quality_engine_failure` |
 | Incidente por ativo | ✅ `correlation_key` generalizada por `subject` sem mudar a chave de runtime |
 | Consumidores | ✅ declarados (contrato) e descobertos (lineage) lado a lado; divergência destacada |
-| Quebra reversível | ✅ `break_contract.py` com 4 modos + `restore` |
+| Quebra reversível | ✅ `break_contract.py` com 4 modos + `restore` (testado: 4,8M linhas quebradas e restauradas) |
+| RCA de qualidade | ✅ violação **real** de freshness detectada; `pipeline_failure` em 1º com **0,75** |
+| Agrupamento por ativo | ✅ 2 regras violadas em `orders` → **1** incidente com 2 evidências |
+| Duração do ciclo | ❌ **18,2 min** contra os 10 do critério SC8 — ver abaixo |
+| Testes | ✅ **180** (68 novos) · ruff limpo |
 
 **Ciclo:** `bootstrap → collect → medallion → quality → correlate → narrate → dispatch`.
 
-**Nota de migração:** renomear coluna em tabela Delta exige column mapping e muda o protocolo.
-Por isso `subject` foi adicionada e preenchida a partir de `job_id`, que segue gravada em
-paralelo até nenhum leitor depender dela.
+**Custo de execução medido:** as 12 regras rodam em segundos — 2,6s a regra de completeness e
+3,8s o join referencial de 60M × 100k, com o warehouse aquecido. A partida a frio custa 27s.
+
+**Por que o ciclo leva 18 min (SC8 reprovado):** cada uma das 7 tasks paga a própria partida
+serverless. O ciclo **já levava ~15 min antes desta feature**; a task de qualidade acrescenta
+3,5 min, quase todos de inicialização. Correção proposta: fundir as tasks Python numa sessão só,
+o que levaria o ciclo para perto de 8 min. Detalhes em
+`.claude/sdd/reports/BUILD_REPORT_EICT_DATA_CONTRACTS.md`.
+
+**Armadilhas do Delta encontradas aqui (valem para qualquer mudança futura):**
+- Renomear coluna exige column mapping e **muda o protocolo da tabela**. Por isso `subject` foi
+  adicionada e preenchida a partir de `job_id`, que segue gravada em paralelo.
+- `UPDATE` recusa expressão não determinística: `rand()` não passa; use hash da chave.
+- Engolir exceção de migração esconde a falha por ciclos inteiros — sempre logar o inesperado.
 
 ---
 
