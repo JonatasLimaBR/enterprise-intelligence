@@ -126,7 +126,7 @@ para 7 min com as medições anexadas. Arquivo: `.claude/sdd/archive/EICT_DEMO_K
 
 **Restrições do workspace usado na demo:** só compute serverless (sem cluster clássico, sem Spark event logs, Spark confs limitadas — por isso a evidência de skew vem do run profile instrumentado); `system.billing.*` não é legível pelo usuário no editor SQL, mas **é** pela identidade do job — o custo funciona.
 
-### Camada de contratos (feature EICT_DATA_CONTRACTS — build concluído em 2026-09-22)
+### Camada de contratos (feature EICT_DATA_CONTRACTS — ✅ Shipped em 2026-09-22)
 
 | Item | Estado |
 |------|--------|
@@ -155,6 +155,9 @@ reaproveitamento. Uma task só, disparando o pipeline pelo SDK, derrubou para 10
 
 **Próxima otimização:** o correlator consulta billing uma vez por run do baseline (173s, ~40% do
 trabalho). Agrupar essas consultas fecharia o SC8.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_DATA_CONTRACTS/SHIPPED_2026-09-22.md`. As features 2
+e 3 do programa de qualidade (impact engine e registry semântico) seguem no backlog.
 
 **Armadilhas do Delta encontradas aqui (valem para qualquer mudança futura):**
 - Renomear coluna exige column mapping e **muda o protocolo da tabela**. Por isso `subject` foi
