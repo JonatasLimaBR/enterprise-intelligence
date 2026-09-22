@@ -322,6 +322,71 @@ def _queue_ticket(spark, settings, incident, current, hypotheses, now) -> None:
     )
 
 
+PRODUCER_WINDOW_HOURS = 6
+
+
+def producer_states(spark, settings, producers: set[str], now) -> dict[str, bool]:
+    """Para cada produtor declarado, diz se ele rodou com sucesso na janela recente.
+
+    Sem isso, a hipótese de pipeline parado nunca pontua — e ela costuma ser a resposta
+    certa quando a violação é de freshness.
+    """
+    if not producers:
+        return {}
+    limite = (now - timedelta(hours=PRODUCER_WINDOW_HOURS)).isoformat(sep=" ", timespec="seconds")
+    try:
+        records = store.query(
+            spark,
+            f"""
+            SELECT job_name, max(end_time) AS ultima, max_by(result_state, end_time) AS estado
+            FROM {settings.table('gold', 'run_features')}
+            WHERE job_name IS NOT NULL AND end_time >= TIMESTAMP '{limite}'
+            GROUP BY job_name
+            """,
+        )
+    except Exception as exc:
+        logger.warning("estado dos produtores indisponível: %s", exc)
+        return {}
+
+    estados: dict[str, bool] = {}
+    for producer in producers:
+        correspondentes = [
+            record for record in records if producer.lower() in (record["job_name"] or "").lower()
+        ]
+        estados[producer] = any(
+            record["estado"] == "SUCCESS" for record in correspondentes
+        )
+    return estados
+
+
+def correlate_quality_incidents(spark, settings, incidents, changes, now) -> int:
+    """Roda o correlator de qualidade sobre os resultados de regra recentes."""
+    from eict.adapters.contract_loader import load_directory
+    from eict.jobs import correlate_quality as quality_correlator
+    from eict.jobs.quality import contracts_dir
+
+    results = quality_correlator.load_recent_results(spark, settings, now)
+    if not results:
+        return 0
+
+    contracts = {
+        contract.asset: contract for contract in load_directory(contracts_dir(settings)).active
+    }
+    payload = quality_correlator.QualityInput(
+        results=results,
+        contracts=contracts,
+        changes=changes,
+        producer_states=producer_states(
+            spark, settings, {contract.producer for contract in contracts.values()}, now
+        ),
+    )
+    touched, entries, evidences, hypotheses = quality_correlator.correlate_quality(
+        payload, incidents, settings.tenant_id, now
+    )
+    quality_correlator.persist(spark, settings, touched, entries, evidences, hypotheses)
+    return len(touched)
+
+
 def main(argv: list[str] | None = None) -> None:
     from pyspark.sql import SparkSession
 
@@ -340,17 +405,25 @@ def main(argv: list[str] | None = None) -> None:
         )
         for record in store.query(spark, f"SELECT * FROM {settings.table('ops', 'capabilities')}")
     ]
+    changes = load_changes(spark, settings)
     touched = correlate(
         spark,
         settings,
         load_features(spark, settings),
-        load_changes(spark, settings),
+        changes,
         load_active_incidents(spark, settings),
         load_reviews(spark, settings),
         capabilities,
         now,
     )
-    logger.info("correlated %s incidents", len(touched))
+    quality_touched = correlate_quality_incidents(
+        spark, settings, load_active_incidents(spark, settings), changes, now
+    )
+    logger.info(
+        "correlacionados: %s incidentes de runtime, %s de qualidade",
+        len(touched),
+        quality_touched,
+    )
 
 
 if __name__ == "__main__":

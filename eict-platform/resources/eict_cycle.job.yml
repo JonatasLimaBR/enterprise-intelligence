@@ -27,6 +27,8 @@ resources:
           default: ${var.jira_project}
         - name: llm_endpoint
           default: ${var.llm_endpoint}
+        - name: contracts_dir
+          default: ${workspace.file_path}/contracts
       environments:
         - environment_key: default
           spec:
@@ -49,6 +51,7 @@ resources:
               - "--jira-base-url={{job.parameters.jira_base_url}}"
               - "--jira-project={{job.parameters.jira_project}}"
               - "--llm-endpoint={{job.parameters.llm_endpoint}}"
+              - "--contracts-dir={{job.parameters.contracts_dir}}"
 
         - task_key: collect
           depends_on:
@@ -66,9 +69,18 @@ resources:
             pipeline_id: ${resources.pipelines.medallion.id}
             full_refresh: false
 
-        - task_key: correlate
+        - task_key: quality
           depends_on:
             - task_key: medallion
+          environment_key: default
+          python_wheel_task:
+            package_name: eict
+            entry_point: quality
+            parameters: *common_parameters
+
+        - task_key: correlate
+          depends_on:
+            - task_key: quality
           environment_key: default
           python_wheel_task:
             package_name: eict

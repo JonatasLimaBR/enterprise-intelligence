@@ -17,7 +17,7 @@ JOBS_CONNECTOR = "databricks_jobs"
 GITHUB_CONNECTOR = "github"
 
 
-def run_envelope(run: Run, settings: Settings, source: str) -> Envelope:
+def run_envelope(run: Run, settings: Settings, source: str, job_name: str = "") -> Envelope:
     return Envelope.create(
         source=source,
         type="execution.completed",
@@ -27,6 +27,7 @@ def run_envelope(run: Run, settings: Settings, source: str) -> Envelope:
         data={
             "run_id": run.run_id,
             "job_id": run.job_id,
+            "job_name": job_name,
             "start_time": run.start_time.isoformat(),
             "end_time": run.end_time.isoformat(),
             "duration_s": run.duration_s,
@@ -91,7 +92,7 @@ def collect_runs(spark: Any, workspace: Any, settings: Settings, source: str) ->
     latest = cursor or 0
     for job in databricks_jobs.list_monitored_jobs(workspace):
         for run in databricks_jobs.list_completed_runs(workspace, job, since_ms=cursor):
-            envelopes.append(run_envelope(run, settings, source))
+            envelopes.append(run_envelope(run, settings, source, job.name))
             latest = max(latest, int(run.end_time.timestamp() * 1000))
     if latest:
         store.merge_rows(

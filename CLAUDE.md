@@ -36,6 +36,7 @@ Implementado na demo: Python 3.11+, PySpark/Lakeflow, Delta, Databricks Asset Bu
 ├── ux/                     # arquitetura de informação, catálogo de 86 telas, contratos críticos
 ├── templates/              # ADR, incidente, postmortem, data contract (YAML)
 ├── demo/                   # KIT: roteiro, scripts de reset/gatilho, deck, arquitetura, verificador
+├── eict-platform/contracts/  # CONTRATOS: um YAML por dataset, avaliado a cada ciclo
 ├── eict-platform/          # CÓDIGO: bundle da plataforma (domínio puro, adapters, jobs, pipeline, app)
 └── eict-demo-workload/     # CÓDIGO: bundle do job encenado + gerador de dados + cenário
 ```
@@ -65,6 +66,7 @@ Implementado na demo: Python 3.11+, PySpark/Lakeflow, Delta, Databricks Asset Bu
 - **Linter:** `ruff` (config em `eict-platform/pyproject.toml`, line-length 120)
 - **Testes:** `pytest` — plataforma: `cd eict-platform && .venv/Scripts/python -m pytest -q`; kit: `eict-platform/.venv/Scripts/python -m pytest demo/tests -q`
 - **Números da demo:** todos saem de `demo/numbers.json`; `demo/verify_demo.py` reprova documento que cite número sem origem
+- **Contratos de dados:** `eict-platform/contracts/*.yaml` no formato de `templates/DATA-CONTRACT-TEMPLATE.yaml`; toda regra exige `owner` e `severity`, senão o contrato inteiro é recusado na carga
 - **Databricks:** profile do CLI definido em `~/.databrickscfg` (ex.: `eict`), workspace **só serverless**; sempre passar `--profile eict`
 - **Commits (planejado):** conventional commits, trunk-based, SBOM e dependências pinadas
 
@@ -123,6 +125,23 @@ para 7 min com as medições anexadas. Arquivo: `.claude/sdd/archive/EICT_DEMO_K
 **Resultado medido:** baseline de 5 runs (168–280s, p95 276s) contra 2 runs lentos (1.570s e 1.547s) → 1 incidente idempotente, 4 evidências (skew na chave, operador `Window` novo no plano, commit `9872c00`, volume estável), impacto no dashboard AI/BI via lineage e custo incremental de US$ 0,0682. A saída do LLM foi **rejeitada pela validação** e a narrativa caiu no fallback determinístico.
 
 **Restrições do workspace usado na demo:** só compute serverless (sem cluster clássico, sem Spark event logs, Spark confs limitadas — por isso a evidência de skew vem do run profile instrumentado); `system.billing.*` não é legível pelo usuário no editor SQL, mas **é** pela identidade do job — o custo funciona.
+
+### Camada de contratos (feature EICT_DATA_CONTRACTS, em build)
+
+| Item | Estado |
+|------|--------|
+| Motor de 7 dimensões | ✅ completeness, uniqueness, validity, freshness, volume, schema, referential |
+| Execução real | ✅ 12 regras contra 60M linhas; regra mais cara (join referencial) em ~4s com warehouse aquecido |
+| `evaluation_error` | ✅ falha de execução nunca vira violação; abre incidente `quality_engine_failure` |
+| Incidente por ativo | ✅ `correlation_key` generalizada por `subject` sem mudar a chave de runtime |
+| Consumidores | ✅ declarados (contrato) e descobertos (lineage) lado a lado; divergência destacada |
+| Quebra reversível | ✅ `break_contract.py` com 4 modos + `restore` |
+
+**Ciclo:** `bootstrap → collect → medallion → quality → correlate → narrate → dispatch`.
+
+**Nota de migração:** renomear coluna em tabela Delta exige column mapping e muda o protocolo.
+Por isso `subject` foi adicionada e preenchida a partir de `job_id`, que segue gravada em
+paralelo até nenhum leitor depender dela.
 
 ---
 

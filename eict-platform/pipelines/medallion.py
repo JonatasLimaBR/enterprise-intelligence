@@ -7,7 +7,7 @@ LANDING_DIR = spark.conf.get("eict.landing_dir")
 BRONZE_TABLE = spark.conf.get("eict.bronze_table")
 
 RUN_SCHEMA = """
-    run_id STRING, job_id STRING, start_time STRING, end_time STRING,
+    run_id STRING, job_id STRING, job_name STRING, start_time STRING, end_time STRING,
     duration_s DOUBLE, result_state STRING, git_sha STRING, env_hash STRING,
     job_parameters MAP<STRING, STRING>
 """
@@ -34,6 +34,7 @@ def runs():
     return parsed.select(
         F.col("payload.run_id").alias("run_id"),
         F.col("payload.job_id").alias("job_id"),
+        F.col("payload.job_name").alias("job_name"),
         F.col("payload.start_time").cast("timestamp").alias("start_time"),
         F.col("payload.end_time").cast("timestamp").alias("end_time"),
         F.col("payload.duration_s").alias("duration_s"),
@@ -90,6 +91,7 @@ def run_features():
         .select(
             "run_id",
             "job_id",
+            "job_name",
             "start_time",
             "end_time",
             "duration_s",

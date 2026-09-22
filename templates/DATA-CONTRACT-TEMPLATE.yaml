@@ -8,16 +8,74 @@ asset: catalog.schema.table
 classification: internal
 schema_ref: schemas/domain.dataset.v1.json
 compatibility: backward
+
+# Colunas declaradas: base do gate de schema.
+# Coluna ausente ou com tipo divergente é violação; coluna nova é apenas informada.
+columns:
+  - name: primary_key
+    type: string
+    required: true
+  - name: amount
+    type: double
+    required: true
+
 slo:
   availability: "99.9%"
   freshness: "30m"
   delivery_time: "07:30 America/Sao_Paulo"
+
+# Dimensões suportadas: completeness, uniqueness, validity, freshness,
+# volume, schema e referential. Toda regra exige owner e severity
+# (info, warning, critical ou blocking).
 quality:
-  - rule: customer_id_not_null
+  - rule_id: primary_key_not_null
     dimension: completeness
+    expression: primary_key
     threshold: ">= 99.9%"
+    severity: critical
+    owner: team-name
+    description: Por que esta regra existe e o que quebra quando ela falha.
+
+  - rule_id: primary_key_unique
+    dimension: uniqueness
+    expression: primary_key
+    threshold: ">= 100%"
+    severity: blocking
+    owner: team-name
+
+  - rule_id: amount_positive
+    dimension: validity
+    expression: amount > 0
+    threshold: ">= 99.99%"
+    severity: warning
+    owner: team-name
+
+  - rule_id: fresh_enough
+    dimension: freshness
+    threshold: "<= 30m"
+    severity: critical
+    owner: team-name
+
+  - rule_id: volume_stable
+    dimension: volume
+    threshold: ">= 0.7"
+    severity: warning
+    owner: team-name
+
+  - rule_id: parent_exists
+    dimension: referential
+    expression: parent_id in catalog.schema.parent_table.parent_id
+    threshold: ">= 99.99%"
+    severity: critical
+    owner: team-name
+
+  - rule_id: schema_stable
+    dimension: schema
+    threshold: ">= 100%"
+    severity: blocking
+    owner: team-name
+
 retention: "5y"
 change_policy:
   breaking_change_approval: [data_owner, consumer_owner]
   deprecation_window: "90d"
-

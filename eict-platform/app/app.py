@@ -98,6 +98,51 @@ def load_cost(run_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
+def load_rule_results(asset: str) -> list[dict]:
+    return query(
+        f"SELECT * FROM {table('ops', 'rule_results')} "
+        "WHERE asset = :asset ORDER BY evaluated_at DESC, rule_id LIMIT 20",
+        {"asset": asset},
+    )
+
+
+def render_rule_results(results: list[dict]) -> None:
+    if not results:
+        st.caption("Nenhum resultado de regra registrado para este ativo.")
+        return
+    rotulos = {"violated": "violada", "passed": "ok", "evaluation_error": "erro de execução"}
+    linhas = [
+        {
+            "regra": item["rule_id"],
+            "dimensão": item["dimension"],
+            "estado": rotulos.get(item["status"], item["status"]),
+            "resultado": _resultado(item),
+            "limite": item["threshold"],
+            "severidade": item["severity"],
+        }
+        for item in results
+    ]
+    st.dataframe(linhas, use_container_width=True, hide_index=True)
+
+    bloqueantes = [item for item in results if item["status"] == "violated" and item["severity"] == "blocking"]
+    if bloqueantes:
+        st.error(f"{len(bloqueantes)} violação(ões) bloqueante(s): avise os consumidores antes do próximo deploy.")
+
+    erros = [item for item in results if item["status"] == "evaluation_error"]
+    if erros:
+        st.warning(
+            f"{len(erros)} regra(s) não puderam ser avaliadas — isso é falha do motor, não dado ruim."
+        )
+
+
+def _resultado(item: dict) -> str:
+    if item["status"] == "evaluation_error":
+        return (item.get("error_message") or "")[:80]
+    if item.get("denominator"):
+        return f"{item['numerator']} de {item['denominator']} ({item['ratio']:.2%})"
+    return str(item.get("numerator", ""))
+
+
 def load_reviews(incident_id: str) -> list[dict]:
     return query(
         f"SELECT * FROM {table('ops', 'hypothesis_reviews')} "
@@ -208,16 +253,20 @@ if narrative:
 else:
     st.caption("Narrativa ainda não gerada.")
 
-st.subheader("Comparação de runs")
-features = load_run_features([incident["first_run_id"], incident["last_run_id"]])
-current = features.get(incident["last_run_id"], {})
-healthy_rows = query(
-    f"SELECT * FROM {table('gold', 'run_features')} "
-    "WHERE job_id = :job_id AND result_state = 'SUCCESS' AND end_time < :before "
-    "ORDER BY end_time DESC LIMIT 1",
-    {"job_id": incident["subject"], "before": incident["detected_at"]},
-)
-render_diff(healthy_rows[0] if healthy_rows else None, current)
+if incident["type"] == "runtime_regression":
+    st.subheader("Comparação de runs")
+    features = load_run_features([incident["first_run_id"], incident["last_run_id"]])
+    current = features.get(incident["last_run_id"], {})
+    healthy_rows = query(
+        f"SELECT * FROM {table('gold', 'run_features')} "
+        "WHERE job_id = :job_id AND result_state = 'SUCCESS' AND end_time < :before "
+        "ORDER BY end_time DESC LIMIT 1",
+        {"job_id": incident["subject"], "before": incident["detected_at"]},
+    )
+    render_diff(healthy_rows[0] if healthy_rows else None, current)
+else:
+    st.subheader("Regras violadas")
+    render_rule_results(load_rule_results(incident["subject"]))
 
 st.subheader("Hipóteses")
 reviews = {review["hypothesis_id"]: review for review in load_reviews(incident["incident_id"])}
@@ -248,8 +297,20 @@ for hypothesis in load_hypotheses(incident["incident_id"]):
                 st.rerun()
 
 st.subheader("Impacto")
-assets = incident.get("affected_assets") or []
-st.write(", ".join(assets) if assets else NOT_AVAILABLE)
+descobertos = list(incident.get("affected_assets") or [])
+declarados = list(incident.get("declared_consumers") or [])
+colunas = st.columns(2)
+colunas[0].markdown("**Descobertos (lineage)**")
+colunas[0].write(", ".join(descobertos) if descobertos else NOT_AVAILABLE)
+colunas[1].markdown("**Declarados (contrato)**")
+colunas[1].write(", ".join(declarados) if declarados else NOT_AVAILABLE)
+
+nao_declarados = sorted(set(descobertos) - set(declarados))
+nao_vistos = sorted(set(declarados) - set(descobertos))
+if nao_declarados:
+    st.warning(f"Consumo não governado (fora do contrato): {', '.join(nao_declarados)}")
+if nao_vistos:
+    st.info(f"Declarado no contrato mas não visto no lineage: {', '.join(nao_vistos)}")
 
 tickets = incident.get("ticket_refs") or []
 st.subheader("Ticket")

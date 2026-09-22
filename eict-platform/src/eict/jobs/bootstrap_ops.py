@@ -170,9 +170,15 @@ TABLES: dict[tuple[str, str], str] = {
     """,
 }
 
+# Migrações aditivas: renomear coluna exigiria column mapping e mudança de protocolo
+# da tabela Delta. `subject` passa a ser a coluna canônica e `job_id` fica preenchida
+# em paralelo enquanto houver leitor antigo.
 MIGRATIONS = (
-    ("ops", "incidents", "RENAME COLUMN job_id TO subject"),
+    ("ops", "incidents", "ADD COLUMN subject STRING"),
     ("ops", "incidents", "ADD COLUMN declared_consumers ARRAY<STRING>"),
+)
+BACKFILLS = (
+    ("ops", "incidents", "UPDATE {table} SET subject = job_id WHERE subject IS NULL"),
 )
 
 
@@ -200,7 +206,17 @@ def apply_migrations(spark: Any, settings: Settings) -> list[str]:
             spark.sql(f"ALTER TABLE {settings.table(layer, table)} {clause}")
             applied.append(f"{table}: {clause}")
         except Exception as exc:
-            logger.debug("migração já aplicada ou inaplicável (%s): %s", clause, exc)
+            if "already exists" not in str(exc).lower():
+                logger.warning("migração %s em %s falhou: %s", clause, table, exc)
+            else:
+                logger.debug("migração já aplicada: %s", clause)
+
+    for layer, table, statement in BACKFILLS:
+        try:
+            spark.sql(statement.format(table=settings.table(layer, table)))
+            applied.append(f"{table}: backfill")
+        except Exception as exc:
+            logger.warning("backfill em %s falhou: %s", table, exc)
     return applied
 
 

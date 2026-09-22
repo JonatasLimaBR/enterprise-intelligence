@@ -83,6 +83,7 @@ def incident_row(incident: Incident) -> dict:
         "incident_id": incident.incident_id,
         "tenant_id": incident.tenant_id,
         "subject": incident.subject,
+        "job_id": incident.subject,  # legado: mantido até nenhum leitor usar
         "type": incident.type,
         "state": incident.state,
         "severity": incident.severity,

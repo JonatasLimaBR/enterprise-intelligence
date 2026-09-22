@@ -1,0 +1,29 @@
+resources:
+  jobs:
+    break_contract:
+      name: eict-demo-break-contract-${bundle.target}
+      max_concurrent_runs: 1
+      parameters:
+        - name: catalog
+          default: ${var.catalog}
+        - name: schema
+          default: ${var.schema}
+        - name: mode
+          default: completeness
+        - name: share
+          default: "0.08"
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+      tasks:
+        - task_key: break
+          environment_key: default
+          spark_python_task:
+            python_file: ../src/break_contract.py
+            source: WORKSPACE
+            parameters:
+              - "--catalog={{job.parameters.catalog}}"
+              - "--schema={{job.parameters.schema}}"
+              - "--mode={{job.parameters.mode}}"
+              - "--share={{job.parameters.share}}"

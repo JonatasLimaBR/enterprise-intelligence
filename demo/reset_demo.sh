@@ -4,10 +4,12 @@ set -euo pipefail
 
 PROFILE="${PROFILE:?defina PROFILE com o nome do profile do Databricks CLI}"
 CATALOG="${CATALOG:-workspace}"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OPS="${CATALOG}.eict_ops"
 SNAP="${CATALOG}.eict_demo_snapshot"
-TABLES=(incidents incident_timeline evidence hypotheses hypothesis_reviews narratives run_cost)
+TABLES=(incidents incident_timeline evidence hypotheses hypothesis_reviews narratives run_cost rule_results)
 DRY_RUN=false
+RESTORE_DATA="${RESTORE_DATA:-true}"
 
 [[ "${1:-}" == "--dry-run" ]] && DRY_RUN=true
 
@@ -69,6 +71,13 @@ main() {
     sql "CREATE OR REPLACE TABLE ${OPS}.${table} AS SELECT * FROM ${SNAP}.${table}" > /dev/null &
   done
   wait
+
+  if [[ "$RESTORE_DATA" == true && -n "${WAREHOUSE_ID:-}" ]]; then
+    echo "restaurando as tabelas do workload (desfaz violações provocadas)"
+    (cd "${HERE}/../eict-demo-workload" 2>/dev/null &&
+      databricks bundle run break_contract -t dev --profile "$PROFILE"         --var="warehouse_id=${WAREHOUSE_ID}" --params "mode=restore" > /dev/null 2>&1) ||
+      echo "  (nenhuma violação a desfazer)"
+  fi
 
   local meta produced detected incident
   meta="$(sql "SELECT incident_id, max(produced_at) AS produced_at,

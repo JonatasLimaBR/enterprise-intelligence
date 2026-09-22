@@ -9,7 +9,7 @@ import yaml
 from eict.adapters.contract_loader import load_directory, load_file
 from eict.domain.contracts import ContractError, parse_contract, summary_row
 
-REPO_CONTRACTS = Path(__file__).resolve().parents[3] / "contracts"
+REPO_CONTRACTS = Path(__file__).resolve().parents[2] / "contracts"
 NOW = datetime(2026, 9, 21, tzinfo=UTC)
 
 VALIDO = {

@@ -18,10 +18,10 @@ DLQ_SOURCE = "contract_loader"
 
 
 def contracts_dir(settings: Settings) -> Path:
-    """No bundle, os contratos ficam ao lado do wheel; em teste, na raiz do repositório."""
+    """Os contratos viajam com o bundle: ficam na raiz do projeto da plataforma."""
     if settings.contracts_dir:
         return Path(settings.contracts_dir)
-    return Path(__file__).resolve().parents[4] / CONTRACTS_DIRNAME
+    return Path(__file__).resolve().parents[3] / CONTRACTS_DIRNAME
 
 
 def evaluate_contracts(
