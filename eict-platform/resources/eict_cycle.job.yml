@@ -36,12 +36,14 @@ resources:
             dependencies:
               - ../dist/*.whl
       tasks:
-        - task_key: bootstrap
+        # Uma única task: cada task de job serverless paga ~4 min montando o ambiente
+        # Python. O pipeline Lakeflow é disparado pelo SDK dentro deste mesmo processo.
+        - task_key: cycle
           environment_key: default
           python_wheel_task:
             package_name: eict
-            entry_point: bootstrap
-            parameters: &common_parameters
+            entry_point: cycle
+            parameters:
               - "--catalog={{job.parameters.catalog}}"
               - "--schema-prefix={{job.parameters.schema_prefix}}"
               - "--tenant-id={{job.parameters.tenant_id}}"
@@ -52,55 +54,4 @@ resources:
               - "--jira-project={{job.parameters.jira_project}}"
               - "--llm-endpoint={{job.parameters.llm_endpoint}}"
               - "--contracts-dir={{job.parameters.contracts_dir}}"
-
-        - task_key: collect
-          depends_on:
-            - task_key: bootstrap
-          environment_key: default
-          python_wheel_task:
-            package_name: eict
-            entry_point: collect
-            parameters: *common_parameters
-
-        - task_key: medallion
-          depends_on:
-            - task_key: collect
-          pipeline_task:
-            pipeline_id: ${resources.pipelines.medallion.id}
-            full_refresh: false
-
-        - task_key: quality
-          depends_on:
-            - task_key: medallion
-          environment_key: default
-          python_wheel_task:
-            package_name: eict
-            entry_point: quality
-            parameters: *common_parameters
-
-        - task_key: correlate
-          depends_on:
-            - task_key: quality
-          environment_key: default
-          python_wheel_task:
-            package_name: eict
-            entry_point: correlate
-            parameters: *common_parameters
-
-        - task_key: narrate
-          depends_on:
-            - task_key: correlate
-          environment_key: default
-          python_wheel_task:
-            package_name: eict
-            entry_point: narrate
-            parameters: *common_parameters
-
-        - task_key: dispatch
-          depends_on:
-            - task_key: narrate
-          environment_key: default
-          python_wheel_task:
-            package_name: eict
-            entry_point: dispatch
-            parameters: *common_parameters
+              - "--pipeline-id=${resources.pipelines.medallion.id}"

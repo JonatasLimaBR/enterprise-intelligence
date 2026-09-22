@@ -138,19 +138,23 @@ para 7 min com as medições anexadas. Arquivo: `.claude/sdd/archive/EICT_DEMO_K
 | Quebra reversível | ✅ `break_contract.py` com 4 modos + `restore` (testado: 4,8M linhas quebradas e restauradas) |
 | RCA de qualidade | ✅ violação **real** de freshness detectada; `pipeline_failure` em 1º com **0,75** |
 | Agrupamento por ativo | ✅ 2 regras violadas em `orders` → **1** incidente com 2 evidências |
-| Duração do ciclo | ❌ **18,2 min** contra os 10 do critério SC8 — ver abaixo |
-| Testes | ✅ **180** (68 novos) · ruff limpo |
+| Duração do ciclo | ⚠️ **10,5 min** (era 18,2) — a 30s do critério SC8 |
+| Testes | ✅ **190** (78 novos) · ruff limpo |
 
-**Ciclo:** `bootstrap → collect → medallion → quality → correlate → narrate → dispatch`.
+**Ciclo:** uma única task Python roda `bootstrap → collect → medallion → quality → correlate → narrate → dispatch`, disparando o pipeline Lakeflow pelo SDK. Uma etapa que falha não derruba as demais; o job falha no fim se alguma falhou.
 
 **Custo de execução medido:** as 12 regras rodam em segundos — 2,6s a regra de completeness e
 3,8s o join referencial de 60M × 100k, com o warehouse aquecido. A partida a frio custa 27s.
 
-**Por que o ciclo leva 18 min (SC8 reprovado):** cada uma das 7 tasks paga a própria partida
-serverless. O ciclo **já levava ~15 min antes desta feature**; a task de qualidade acrescenta
-3,5 min, quase todos de inicialização. Correção proposta: fundir as tasks Python numa sessão só,
-o que levaria o ciclo para perto de 8 min. Detalhes em
-`.claude/sdd/reports/BUILD_REPORT_EICT_DATA_CONTRACTS.md`.
+**Custo do ciclo (medido, 10,5 min):** bootstrap 51s · collect 51s · medallion 92s · quality 60s ·
+**correlate 173s** · narrate 14s · dispatch 0s, mais ~3 min de provisionamento do ambiente Python.
+
+**Lição de estrutura:** o Databricks reaproveita o ambiente entre tasks **consecutivas**. Fundir 7
+tasks em 3 *piorou* o tempo (19,8 min), porque o pipeline Lakeflow no meio quebrou esse
+reaproveitamento. Uma task só, disparando o pipeline pelo SDK, derrubou para 10,5 min.
+
+**Próxima otimização:** o correlator consulta billing uma vez por run do baseline (173s, ~40% do
+trabalho). Agrupar essas consultas fecharia o SC8.
 
 **Armadilhas do Delta encontradas aqui (valem para qualquer mudança futura):**
 - Renomear coluna exige column mapping e **muda o protocolo da tabela**. Por isso `subject` foi

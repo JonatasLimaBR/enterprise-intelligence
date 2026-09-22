@@ -11,6 +11,7 @@ dependencies = [
 ]
 
 [project.scripts]
+cycle = "eict.jobs.cycle:main"
 bootstrap = "eict.jobs.bootstrap_ops:main"
 collect = "eict.jobs.collect:main"
 quality = "eict.jobs.quality:main"
