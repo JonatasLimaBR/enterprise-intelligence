@@ -231,13 +231,30 @@ incident = labels[selected_label]
 header = st.columns(4)
 header[0].metric("Incidente", incident["incident_id"][:12])
 header[1].metric("Estado", incident["state"])
-header[2].metric("Severidade", incident["severity"])
+header[2].metric(
+    "Severidade",
+    incident["severity"],
+    help=(
+        f"elevada de {incident['escalated_from']}: {incident['escalation_reason']}"
+        if incident.get("escalated_from")
+        else None
+    ),
+)
 cost = load_cost(incident["last_run_id"])
 header[3].metric(
     "Custo incremental",
     NOT_AVAILABLE if not cost or cost["status"] != "available" else f"US$ {cost['incremental_cost_usd']:.2f}",
     help=None if not cost else f"status: {cost['status']}",
 )
+
+raio = incident.get("affected_assets") or []
+if raio:
+    score = incident.get("impact_score") or 0.0
+    st.caption(
+        f"**Raio de impacto** · score {score:.3f} · {len(raio)} ativo(s) atingido(s)"
+        + (f" · elevada de `{incident['escalated_from']}`" if incident.get("escalated_from") else "")
+    )
+    st.write(", ".join(f"`{item}`" for item in raio))
 
 narrative = load_narrative(incident["incident_id"])
 evidence = load_evidence(incident["incident_id"])

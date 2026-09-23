@@ -128,3 +128,79 @@ def test_narrative_id_changes_with_incident_version(
     second = narrate_incident(None, bumped, hypotheses, evidence)["narrative_id"]
 
     assert first != second
+
+
+class _SparkFalso:
+    """Registra quantas consultas recebeu, para provar o agrupamento."""
+
+    def __init__(self, linhas: list[dict]):
+        self.linhas = linhas
+        self.consultas: list[str] = []
+
+    def sql(self, statement: str):
+        self.consultas.append(statement)
+        return self
+
+    def collect(self):
+        return [_LinhaFalsa(linha) for linha in self.linhas]
+
+
+class _LinhaFalsa:
+    def __init__(self, dados: dict):
+        self._dados = dados
+
+    def asDict(self, recursive: bool = False) -> dict:
+        return dict(self._dados)
+
+
+def test_custos_de_varios_runs_vem_numa_consulta_so():
+    from eict.jobs.correlate import billing_facts
+
+    spark = _SparkFalso(
+        [
+            {"run_id": "run-1", "dbus": 1.0, "list_cost_usd": 0.30},
+            {"run_id": "run-2", "dbus": 3.0, "list_cost_usd": 0.90},
+        ]
+    )
+
+    custos = billing_facts(spark, ["run-1", "run-2", "run-1"], available=True)
+
+    assert len(spark.consultas) == 1
+    assert set(custos) == {"run-1", "run-2"}
+    assert custos["run-2"].list_cost_usd == 0.90
+
+
+def test_sem_billing_disponivel_nao_consulta():
+    from eict.jobs.correlate import billing_facts
+
+    spark = _SparkFalso([])
+
+    assert billing_facts(spark, ["run-1"], available=False) == {}
+    assert spark.consultas == []
+
+
+def test_lista_vazia_nao_consulta():
+    from eict.jobs.correlate import billing_facts
+
+    spark = _SparkFalso([])
+
+    assert billing_facts(spark, [], available=True) == {}
+    assert spark.consultas == []
+
+
+def test_run_sem_custo_registrado_fica_de_fora():
+    from eict.jobs.correlate import billing_facts
+
+    spark = _SparkFalso([{"run_id": "run-1", "dbus": None, "list_cost_usd": None}])
+
+    assert billing_facts(spark, ["run-1"], available=True) == {}
+
+
+def test_falha_na_consulta_nao_derruba_o_ciclo():
+    from eict.jobs.correlate import billing_facts
+
+    class _SparkQuebrado:
+        def sql(self, statement: str):
+            raise RuntimeError("billing indisponível")
+
+    assert billing_facts(_SparkQuebrado(), ["run-1"], available=True) == {}

@@ -4,11 +4,28 @@ import json
 from datetime import datetime
 
 from eict.domain.models import Evidence, RuleResult
+from eict.domain.severity import rank_of
 
 EVIDENCE_KIND = "rule_violation"
 ERROR_KIND = "rule_evaluation_error"
-SEVERITY_ORDER = {"info": 0, "warning": 1, "critical": 2, "blocking": 3}
 DEFAULT_SEVERITY = "warning"
+
+
+def latest_per_rule(results: list[RuleResult]) -> list[RuleResult]:
+    """Só a avaliação mais recente de cada regra conta.
+
+    Os resultados são carregados numa janela de horas para tolerar um ciclo em que a
+    etapa de qualidade não rodou. Sem esta redução, uma violação já corrigida continua
+    somando: um incidente aberto depois do conserto nascia com a severidade de um
+    problema que não existe mais.
+    """
+    mais_recente: dict[tuple[str, str], RuleResult] = {}
+    for result in results:
+        chave = (result.asset, result.rule_id)
+        atual = mais_recente.get(chave)
+        if atual is None or result.evaluated_at > atual.evaluated_at:
+            mais_recente[chave] = result
+    return list(mais_recente.values())
 
 
 def group_violations(results: list[RuleResult]) -> dict[str, list[RuleResult]]:
@@ -32,7 +49,7 @@ def incident_severity(results: list[RuleResult]) -> str:
     """A severidade do incidente é a mais alta entre as regras quebradas."""
     if not results:
         return DEFAULT_SEVERITY
-    return max(results, key=lambda item: SEVERITY_ORDER.get(item.severity, 0)).severity
+    return max(results, key=lambda item: rank_of(item.severity)).severity
 
 
 def first_result_id(results: list[RuleResult]) -> str:

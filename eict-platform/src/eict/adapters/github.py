@@ -41,6 +41,25 @@ class GitHubClient:
             raise GitHubError(f"github {response.status_code} for commit {sha}")
         return to_change(self.repo, response.json())
 
+    def fetch_file(self, path: str, ref: str = "") -> str:
+        """Conteúdo do arquivo no commit. Arquivo ausente devolve vazio, não exceção.
+
+        Ler o código pelo SHA é o que torna a definição extraída rastreável: dá para dizer
+        **quando** a fórmula mudou, não só que ela está diferente.
+        """
+        session = self.session or requests.Session()
+        response = session.get(
+            f"{self.api_root}/repos/{self.repo}/contents/{path}",
+            headers={**self.headers(), "Accept": "application/vnd.github.raw"},
+            params={"ref": ref} if ref else {},
+            timeout=TIMEOUT_S,
+        )
+        if response.status_code == 404:
+            return ""
+        if response.status_code != 200:
+            raise GitHubError(f"github {response.status_code} para {path}")
+        return response.text
+
 
 def to_change(repo: str, payload: dict) -> Change:
     commit = payload.get("commit", {})

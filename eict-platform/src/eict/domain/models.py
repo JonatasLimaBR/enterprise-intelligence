@@ -193,6 +193,10 @@ class Incident:
     affected_assets: tuple[str, ...] = ()
     ticket_refs: tuple[str, ...] = ()
     declared_consumers: tuple[str, ...] = ()
+    impact_score: float = 0.0
+    impact_policy_version: str = ""
+    escalated_from: str = ""
+    escalation_reason: str = ""
     version: int = 1
 
     @property
@@ -228,6 +232,40 @@ class Incident:
 
     def with_declared_consumers(self, consumers: tuple[str, ...]) -> Incident:
         return replace(self, declared_consumers=consumers, version=self.version + 1)
+
+    def with_impact(
+        self,
+        assets: tuple[str, ...],
+        score: float,
+        policy_version: str,
+        severity: str | None = None,
+        escalation_reason: str = "",
+    ) -> Incident:
+        """Registra o raio e, quando houve elevação, de onde a severidade veio.
+
+        `escalated_from` só é preenchido numa elevação de verdade; reaplicar o mesmo
+        impacto num incidente já elevado não reescreve a origem nem inventa história.
+        """
+        subiu = severity is not None and severity != self.severity
+        return replace(
+            self,
+            affected_assets=assets,
+            impact_score=score,
+            impact_policy_version=policy_version,
+            severity=severity or self.severity,
+            escalated_from=self.severity if subiu else self.escalated_from,
+            escalation_reason=escalation_reason if subiu else self.escalation_reason,
+            version=self.version + 1,
+        )
+
+    def resolved_at(self, at: datetime) -> Incident:
+        """Fecha o incidente porque a condição deixou de existir.
+
+        Usa `recovered`, o estado de fechamento que o sistema já tem para "o problema
+        sumiu" — distinto de `closed` (encerrado por decisão) e `cancelled` (aberto por
+        engano).
+        """
+        return replace(self, state="recovered", updated_at=at, version=self.version + 1)
 
     def with_ticket(self, ticket_ref: str) -> Incident:
         if ticket_ref in self.ticket_refs:

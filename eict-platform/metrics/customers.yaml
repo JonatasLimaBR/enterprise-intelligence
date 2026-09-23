@@ -1,0 +1,10 @@
+metric_id: customers
+asset: workspace.eict_workload.sales_daily
+formula: countDistinct(customer_id)
+grain: [order_date, region, segment]
+dimensions: [region, segment]
+owner: comercial-dados@exemplo.com
+status: canonical
+version: 1.0.0
+examples:
+  - "2026-09-07 · RJ · SEG-5 → 1.666"

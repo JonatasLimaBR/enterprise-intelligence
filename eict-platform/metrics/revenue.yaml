@@ -1,0 +1,12 @@
+metric_id: revenue
+asset: workspace.eict_workload.sales_daily
+formula: sum(amount * (1 - discount_pct / 100))
+grain: [order_date, region, segment]
+dimensions: [region, segment]
+owner: comercial-dados@exemplo.com
+status: canonical
+version: 1.0.0
+currency: BRL
+calendar: gregorian
+examples:
+  - "2026-09-07 · RJ · SEG-5 → 4.992.269,33"

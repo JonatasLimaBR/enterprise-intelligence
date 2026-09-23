@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from eict.domain.models import Evidence, Hypothesis, Incident, Run, RunProfile, TimelineEntry
+from eict.domain.models import Evidence, Hypothesis, Incident, Run, RunProfile, TimelineEntry, stable_id
 
 
 def ensure_utc(value: Any) -> Any:
@@ -94,6 +94,10 @@ def incident_row(incident: Incident) -> dict:
         "affected_assets": list(incident.affected_assets),
         "ticket_refs": list(incident.ticket_refs),
         "declared_consumers": list(incident.declared_consumers),
+        "impact_score": float(incident.impact_score),
+        "impact_policy_version": incident.impact_policy_version,
+        "escalated_from": incident.escalated_from,
+        "escalation_reason": incident.escalation_reason,
         "version": incident.version,
     }
 
@@ -120,6 +124,39 @@ def evidence_row(incident_id: str, evidence: Evidence) -> dict:
         "summary": evidence.summary,
         "value_json": str(evidence.value) if evidence.value is not None else None,
         "hash": evidence.hash,
+    }
+
+
+def metric_row(observed, source_sha: str, observed_at) -> dict:
+    return {
+        "observation_id": stable_id(
+            "obs", observed.asset, observed.metric_id, observed.source_path,
+            str(observed.source_line),
+        ),
+        "metric_id": observed.metric_id,
+        "asset": observed.asset,
+        "source_path": observed.source_path,
+        "source_line": int(observed.source_line),
+        "source_sha": source_sha,
+        "formula_raw": observed.formula_raw,
+        "formula_hash": observed.formula_hash,
+        "grain": list(observed.grain),
+        "extraction_status": observed.status,
+        "extraction_detail": observed.detail,
+        "observed_at": observed_at,
+    }
+
+
+def ontology_row(edge) -> dict:
+    return {
+        "edge_id": edge.edge_id,
+        "subject": edge.subject,
+        "predicate": edge.predicate,
+        "object": edge.object,
+        "origin": edge.origin,
+        "status": edge.status,
+        "confidence": float(edge.confidence),
+        "observed_at": edge.observed_at,
     }
 
 

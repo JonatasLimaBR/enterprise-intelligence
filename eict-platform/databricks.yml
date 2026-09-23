@@ -26,6 +26,9 @@ variables:
   github_repo:
     description: owner/name of the monitored workload repository
     default: ""
+  workload_repo:
+    description: owner/name do repositório lido pela etapa semantics (vazio = usa github_repo)
+    default: ""
   jira_base_url:
     description: https://<site>.atlassian.net
     default: ""

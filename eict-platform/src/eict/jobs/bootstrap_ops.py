@@ -40,7 +40,48 @@ TABLES: dict[tuple[str, str], str] = {
         affected_assets ARRAY<STRING>,
         ticket_refs ARRAY<STRING>,
         declared_consumers ARRAY<STRING>,
+        impact_score DOUBLE,
+        impact_policy_version STRING,
+        escalated_from STRING,
+        escalation_reason STRING,
         version INT
+    """,
+    ("ops", "lineage_graph"): """
+        edge_id STRING NOT NULL,
+        source_asset STRING,
+        target_asset STRING,
+        entity_type STRING,
+        entity_id STRING,
+        first_seen TIMESTAMP,
+        last_seen TIMESTAMP,
+        schema_fingerprint STRING,
+        previous_fingerprint STRING,
+        fingerprint_changed_at TIMESTAMP,
+        observed_cycles BIGINT
+    """,
+    ("ops", "metrics"): """
+        observation_id STRING NOT NULL,
+        metric_id STRING,
+        asset STRING,
+        source_path STRING,
+        source_line INT,
+        source_sha STRING,
+        formula_raw STRING,
+        formula_hash STRING,
+        grain ARRAY<STRING>,
+        extraction_status STRING,
+        extraction_detail STRING,
+        observed_at TIMESTAMP
+    """,
+    ("ops", "ontology_edges"): """
+        edge_id STRING NOT NULL,
+        subject STRING,
+        predicate STRING,
+        object STRING,
+        origin STRING,
+        status STRING,
+        confidence DOUBLE,
+        observed_at TIMESTAMP
     """,
     ("ops", "incident_timeline"): """
         entry_id STRING NOT NULL,
@@ -176,6 +217,10 @@ TABLES: dict[tuple[str, str], str] = {
 MIGRATIONS = (
     ("ops", "incidents", "ADD COLUMN subject STRING"),
     ("ops", "incidents", "ADD COLUMN declared_consumers ARRAY<STRING>"),
+    ("ops", "incidents", "ADD COLUMN impact_score DOUBLE"),
+    ("ops", "incidents", "ADD COLUMN impact_policy_version STRING"),
+    ("ops", "incidents", "ADD COLUMN escalated_from STRING"),
+    ("ops", "incidents", "ADD COLUMN escalation_reason STRING"),
 )
 BACKFILLS = (
     ("ops", "incidents", "UPDATE {table} SET subject = job_id WHERE subject IS NULL"),

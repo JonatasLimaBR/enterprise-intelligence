@@ -10,6 +10,7 @@ from eict.domain.models import Hypothesis, Incident, Run, TimelineEntry, stable_
 RUNTIME_REGRESSION = "runtime_regression"
 CONTRACT_VIOLATION = "contract_violation"
 QUALITY_ENGINE_FAILURE = "quality_engine_failure"
+SEMANTIC_CONFLICT = "semantic_conflict"
 DEFAULT_SEVERITY = "high"
 
 

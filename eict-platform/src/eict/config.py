@@ -20,6 +20,15 @@ class Settings:
     jira_project: str = ""
     llm_endpoint: str = ""
     contracts_dir: str = ""
+    impact_exclude: str = "_contract_backup,_impact_backup,_small"
+    impact_max_depth: int = 3
+    metrics_dir: str = ""
+    workload_repo: str = ""
+
+    @property
+    def excluded_assets(self) -> tuple[str, ...]:
+        """Ruído do cenário de demo: sufixos gerados pelo nosso próprio tooling."""
+        return tuple(item.strip() for item in self.impact_exclude.split(",") if item.strip())
 
     def table(self, layer: str, name: str) -> str:
         return f"{self.catalog}.{self.schema_prefix}{layer}.{name}"
@@ -44,6 +53,10 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
     parser.add_argument("--jira-project", default="")
     parser.add_argument("--llm-endpoint", default="")
     parser.add_argument("--contracts-dir", default="")
+    parser.add_argument("--impact-exclude", default="_contract_backup,_impact_backup,_small")
+    parser.add_argument("--impact-max-depth", type=int, default=3)
+    parser.add_argument("--metrics-dir", default="")
+    parser.add_argument("--workload-repo", default="")
     known, _ = parser.parse_known_args(argv)
     return Settings(
         catalog=known.catalog,
@@ -56,4 +69,8 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
         jira_project=known.jira_project,
         llm_endpoint=known.llm_endpoint,
         contracts_dir=known.contracts_dir,
+        impact_exclude=known.impact_exclude,
+        impact_max_depth=known.impact_max_depth,
+        metrics_dir=known.metrics_dir,
+        workload_repo=known.workload_repo,
     )

@@ -79,6 +79,7 @@ def test_as_etapas_cobrem_o_ciclo_inteiro_na_ordem_de_dependencia():
         "collect",
         "medallion",
         "quality",
+        "semantics",
         "correlate",
         "narrate",
         "dispatch",

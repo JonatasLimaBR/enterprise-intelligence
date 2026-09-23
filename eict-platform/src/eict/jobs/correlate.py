@@ -6,14 +6,23 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from eict.adapters import capabilities as capability_probe
-from eict.adapters import store
+from eict.adapters import lineage, store
 from eict.adapters.jira import label_for
 from eict.config import Settings, parse_settings
 from eict.domain import baseline as baseline_rules
 from eict.domain import hypotheses as hypothesis_rules
+from eict.domain import impact as impact_rules
 from eict.domain.cost import BillingFact, incremental_cost
 from eict.domain.incidents import RUNTIME_REGRESSION, Review, apply_reviews, detection_entry, open_or_update
-from eict.domain.models import ACTIVE_INCIDENT_STATES, Change, Incident, RunFeatures
+from eict.domain.models import (
+    ACTIVE_INCIDENT_STATES,
+    CLOSED_INCIDENT_STATES,
+    Change,
+    Incident,
+    RunFeatures,
+    TimelineEntry,
+)
+from eict.domain.resolution import resolvable
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +85,21 @@ def load_active_incidents(spark: Any, settings: Settings) -> list[Incident]:
     ]
 
 
+def load_closed_until(spark: Any, settings: Settings) -> dict[str, datetime]:
+    """Para cada job, o instante do último fechamento de um incidente de runtime."""
+    states = ", ".join(f"'{state}'" for state in sorted(CLOSED_INCIDENT_STATES))
+    records = store.query(
+        spark,
+        f"""
+        SELECT subject, max(updated_at) AS fechado_em
+        FROM {settings.table('ops', 'incidents')}
+        WHERE type = '{RUNTIME_REGRESSION}' AND state IN ({states})
+        GROUP BY subject
+        """,
+    )
+    return {record["subject"]: record["fechado_em"] for record in records}
+
+
 def load_reviews(spark: Any, settings: Settings) -> list[Review]:
     records = store.query(spark, f"SELECT * FROM {settings.table('ops', 'hypothesis_reviews')}")
     return [
@@ -102,56 +126,90 @@ def changes_in_window(changes: list[Change], healthy: RunFeatures | None, curren
     return ordered
 
 
-def downstream_assets(spark: Any, settings: Settings, job_id: str, available: bool) -> tuple[str, ...]:
-    if not available:
-        return ()
-    try:
-        records = store.query(
-            spark,
-            f"""
-            SELECT DISTINCT entity_type, entity_id, target_table_full_name
-            FROM {capability_probe.TABLE_LINEAGE}
-            WHERE source_table_full_name IS NOT NULL
-              AND event_time > current_timestamp() - INTERVAL 30 DAYS
-              AND source_table_full_name LIKE '{settings.catalog}.{settings.schema_prefix}workload.%'
-            """,
+def lineage_ready(capabilities: list) -> bool:
+    return capability_probe.status_of(capabilities, capability_probe.TABLE_LINEAGE)
+
+
+def refresh_graph(spark: Any, settings: Settings, available: bool, now: datetime) -> tuple:
+    """Atualiza o grafo acumulado e devolve as arestas para percorrer.
+
+    O grafo materializado é a fonte da travessia, não a consulta do ciclo: arestas
+    vistas em ciclos anteriores continuam valendo, com o peso que a recência lhes der.
+    """
+    observations = lineage.fetch_edges(spark, settings, available)
+    if observations:
+        lineage.merge_graph(
+            spark, settings, observations, lineage.schema_fingerprints(spark, settings), now
         )
-    except Exception as exc:
-        logger.warning("lineage query failed: %s", exc)
-        return ()
-    assets = {
-        record.get("target_table_full_name") or f"{record.get('entity_type')}/{record.get('entity_id')}"
-        for record in records
-    }
-    return tuple(sorted(asset for asset in assets if asset))
+    return lineage.load_graph(spark, settings) if available else ()
 
 
-def billing_fact(spark: Any, run_id: str, available: bool) -> BillingFact | None:
-    if not available:
-        return None
+def impact_for(
+    edges: tuple, subject: str, settings: Settings, now: datetime
+) -> impact_rules.ImpactResult:
+    return impact_rules.traverse(
+        edges,
+        subject,
+        now,
+        direction=impact_rules.DOWNSTREAM,
+        max_depth=settings.impact_max_depth,
+        excluded=settings.excluded_assets,
+    )
+
+
+def apply_impact(incident: Incident, result: impact_rules.ImpactResult) -> Incident:
+    """Grava o raio e eleva a severidade quando ele alcança consumo humano."""
+    if not result.nodes:
+        return incident
+    subida = impact_rules.escalation(incident.severity, result)
+    return incident.with_impact(
+        assets=result.assets,
+        score=result.score,
+        policy_version=result.policy_version,
+        severity=subida.to_severity if subida else None,
+        escalation_reason=subida.reason if subida else "",
+    )
+
+
+def billing_facts(
+    spark: Any, run_ids: list[str], available: bool
+) -> dict[str, BillingFact]:
+    """Custo de todos os runs numa consulta só.
+
+    Uma consulta por run custava ~170s por ciclo: seis por incidente, cada uma com join
+    entre usage e list_prices sobre a tabela de faturamento inteira.
+    """
+    if not available or not run_ids:
+        return {}
+    lista = ", ".join(f"'{run_id}'" for run_id in sorted(set(run_ids)))
     try:
         records = store.query(
             spark,
             f"""
-            SELECT SUM(u.usage_quantity) AS dbus,
+            SELECT u.usage_metadata.job_run_id AS run_id,
+                   SUM(u.usage_quantity) AS dbus,
                    SUM(u.usage_quantity * p.pricing.default) AS list_cost_usd
             FROM {capability_probe.BILLING_USAGE} u
             JOIN {capability_probe.BILLING_PRICES} p
               ON u.sku_name = p.sku_name AND p.price_end_time IS NULL
-            WHERE u.usage_metadata.job_run_id = '{run_id}'
+            WHERE u.usage_metadata.job_run_id IN ({lista})
+            GROUP BY u.usage_metadata.job_run_id
             """,
         )
     except Exception as exc:
-        logger.warning("billing query failed: %s", exc)
-        return None
-    if not records or records[0].get("dbus") is None:
-        return None
-    return BillingFact(
-        run_id=run_id,
-        dbus=float(records[0]["dbus"]),
-        list_cost_usd=float(records[0]["list_cost_usd"] or 0.0),
-        source_ref=capability_probe.BILLING_USAGE,
-    )
+        logger.warning("consulta de billing falhou: %s", exc)
+        return {}
+
+    return {
+        record["run_id"]: BillingFact(
+            run_id=record["run_id"],
+            dbus=float(record["dbus"]),
+            list_cost_usd=float(record["list_cost_usd"] or 0.0),
+            source_ref=capability_probe.BILLING_USAGE,
+        )
+        for record in records
+        if record.get("dbus") is not None
+    }
 
 
 def correlate(
@@ -163,16 +221,33 @@ def correlate(
     reviews: list[Review],
     capabilities: list[capability_probe.Capability],
     now: datetime,
+    graph: tuple = (),
+    closed_until: dict[str, datetime] | None = None,
 ) -> list[Incident]:
+    """Reavalia o histórico inteiro a cada ciclo — por isso precisa de `closed_until`.
+
+    Um run lento anterior ao fechamento do incidente do seu job já foi julgado. Sem esse
+    corte, o incidente fechado renasceria no ciclo seguinte com a mesma chave, porque o
+    run que o abriu continua no histórico e continua lento. O run julgado segue fora do
+    baseline: fechar o incidente não o torna saudável.
+    """
+    closed_until = closed_until or {}
     history = [item.run for item in features]
     by_run_id = {item.run_id: item for item in features}
-    lineage_available = capability_probe.status_of(capabilities, capability_probe.TABLE_LINEAGE)
     billing_available = capability_probe.status_of(capabilities, capability_probe.BILLING_USAGE)
     touched: list[Incident] = []
     incident_run_ids = _runs_under_incident(incidents)
+    latest: dict[str, tuple[RunFeatures, bool]] = {}
 
     for current in features:
         verdict = baseline_rules.evaluate(current.run, history, incident_run_ids)
+        fechado_em = closed_until.get(current.run.job_id)
+        if fechado_em is not None and current.run.end_time <= fechado_em:
+            if verdict.is_regression:
+                incident_run_ids = incident_run_ids | {current.run_id}
+            continue
+        if verdict.baseline is not None:
+            latest[current.run.job_id] = (current, verdict.is_regression)
         if not verdict.is_regression or verdict.baseline is None:
             incident_run_ids = incident_run_ids - {current.run_id}
             continue
@@ -192,8 +267,9 @@ def correlate(
         )
         reviewed, review_entries = apply_reviews(list(analysis.hypotheses), reviews)
 
-        assets = downstream_assets(spark, settings, current.run.job_id, lineage_available)
-        incident = incident.with_assets(assets) if assets else incident
+        incident = apply_impact(
+            incident, impact_for(graph, current.run.job_id, settings, now)
+        )
 
         _persist_incident(
             spark, settings, incident, current.run, verdict.baseline, created, analysis, reviewed, review_entries
@@ -207,7 +283,39 @@ def correlate(
         incidents.append(incident)
         touched.append(incident)
 
+    for incident, entry in resolvable(incidents, *runtime_state(latest), now):
+        _persist_resolution(spark, settings, incident, entry)
+        touched.append(incident)
+
     return touched
+
+
+def runtime_state(
+    latest: dict[str, tuple[RunFeatures, bool]],
+) -> tuple[frozenset[tuple[str, str]], frozenset[tuple[str, str]]]:
+    """Jobs avaliados e jobs regredidos, pelo run mais recente de cada um.
+
+    Avaliado exige baseline e sucesso: run sem histórico suficiente não prova nada, e run
+    que falhou pode ser curto por ter morrido cedo — duração dentro do baseline não é
+    recuperação.
+    """
+    avaliados: set[tuple[str, str]] = set()
+    violando: set[tuple[str, str]] = set()
+    for job_id, (current, regressed) in latest.items():
+        if regressed:
+            violando.add((job_id, RUNTIME_REGRESSION))
+        if current.run.succeeded:
+            avaliados.add((job_id, RUNTIME_REGRESSION))
+    return frozenset(avaliados), frozenset(violando)
+
+
+def _persist_resolution(spark, settings, incident: Incident, entry: TimelineEntry) -> None:
+    store.merge_rows(
+        spark, settings.table("ops", "incidents"), [store.incident_row(incident)], ["correlation_key"]
+    )
+    store.insert_missing(
+        spark, settings.table("ops", "incident_timeline"), [store.timeline_row(entry)], "entry_id"
+    )
 
 
 def _runs_under_incident(incidents: list[Incident]) -> frozenset[str]:
@@ -249,17 +357,17 @@ def _persist_cost(spark, settings, incident, current, history, billing_available
     baseline_runs = [
         run for run in history if run.succeeded and run.end_time < current.run.start_time
     ][-5:]
-    facts = [
-        fact
-        for fact in (billing_fact(spark, run.run_id, billing_available) for run in baseline_runs)
-        if fact is not None
-    ]
+    custos = billing_facts(
+        spark,
+        [run.run_id for run in baseline_runs] + [current.run_id],
+        billing_available,
+    )
     cost = incremental_cost(
         run_id=current.run_id,
         run_end=current.run.end_time,
         now=now,
-        run_fact=billing_fact(spark, current.run_id, billing_available),
-        baseline_facts=facts,
+        run_fact=custos.get(current.run_id),
+        baseline_facts=[custos[run.run_id] for run in baseline_runs if run.run_id in custos],
         billing_available=billing_available,
     )
     store.merge_rows(
@@ -359,14 +467,15 @@ def producer_states(spark, settings, producers: set[str], now) -> dict[str, bool
     return estados
 
 
-def correlate_quality_incidents(spark, settings, incidents, changes, now) -> int:
+def correlate_quality_incidents(spark, settings, incidents, changes, now, graph=()) -> int:
     """Roda o correlator de qualidade sobre os resultados de regra recentes."""
     from eict.adapters.contract_loader import load_directory
     from eict.jobs import correlate_quality as quality_correlator
     from eict.jobs.quality import contracts_dir
 
     results = quality_correlator.load_recent_results(spark, settings, now)
-    if not results:
+    semantics = quality_correlator.load_semantic_state(spark, settings, now)
+    if not results and semantics is None:
         return 0
 
     contracts = {
@@ -379,6 +488,11 @@ def correlate_quality_incidents(spark, settings, incidents, changes, now) -> int
         producer_states=producer_states(
             spark, settings, {contract.producer for contract in contracts.values()}, now
         ),
+        graph=graph,
+        changed_upstream=lineage.changed_assets(spark, settings) if graph else frozenset(),
+        max_depth=settings.impact_max_depth,
+        excluded=settings.excluded_assets,
+        semantics=semantics,
     )
     touched, entries, evidences, hypotheses = quality_correlator.correlate_quality(
         payload, incidents, settings.tenant_id, now
@@ -406,6 +520,7 @@ def main(argv: list[str] | None = None) -> None:
         for record in store.query(spark, f"SELECT * FROM {settings.table('ops', 'capabilities')}")
     ]
     changes = load_changes(spark, settings)
+    graph = refresh_graph(spark, settings, lineage_ready(capabilities), now)
     touched = correlate(
         spark,
         settings,
@@ -415,9 +530,11 @@ def main(argv: list[str] | None = None) -> None:
         load_reviews(spark, settings),
         capabilities,
         now,
+        graph,
+        load_closed_until(spark, settings),
     )
     quality_touched = correlate_quality_incidents(
-        spark, settings, load_active_incidents(spark, settings), changes, now
+        spark, settings, load_active_incidents(spark, settings), changes, now, graph
     )
     logger.info(
         "correlacionados: %s incidentes de runtime, %s de qualidade",

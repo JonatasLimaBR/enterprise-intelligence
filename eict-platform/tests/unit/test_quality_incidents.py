@@ -193,3 +193,50 @@ def test_at016_consumidores_declarados_e_descobertos_ficam_separados():
 
     assert com_listas.undeclared_consumers == ("api_previsao",)
     assert com_listas.unseen_declared_consumers == ("time_financeiro",)
+
+
+def test_violacao_ja_corrigida_nao_conta_mais():
+    """A janela de 6h carregava avaliações antigas; a corrigida continuava somando."""
+    from dataclasses import replace
+
+    from eict.domain.quality_incidents import latest_per_rule
+
+    antiga = make_result("sales_fresh", asset=SALES, severity="critical")
+    nova = replace(
+        antiga,
+        status="passed",
+        result_id="res-sales_fresh-2",
+        evaluated_at=antiga.evaluated_at + timedelta(hours=3),
+    )
+
+    atual = latest_per_rule([antiga, nova])
+
+    assert len(atual) == 1
+    assert atual[0].status == "passed"
+
+
+def test_severidade_reflete_o_estado_atual_e_nao_o_pior_da_janela():
+    from dataclasses import replace
+
+    from eict.domain.quality_incidents import latest_per_rule
+
+    critica_antiga = make_result("sales_fresh", asset=SALES, severity="critical")
+    critica_resolvida = replace(
+        critica_antiga,
+        status="passed",
+        result_id="res-fresh-2",
+        evaluated_at=critica_antiga.evaluated_at + timedelta(hours=3),
+    )
+    warning_atual = make_result("sales_volume", asset=SALES, severity="warning", minutes=180)
+
+    violadas = group_violations(
+        latest_per_rule([critica_antiga, critica_resolvida, warning_atual])
+    )
+
+    assert incident_severity(violadas[SALES]) == "warning"
+
+
+def test_regras_de_ativos_diferentes_nao_se_sobrepoem():
+    from eict.domain.quality_incidents import latest_per_rule
+
+    assert len(latest_per_rule([make_result("r1", asset=ORDERS), make_result("r1", asset=SALES)])) == 2

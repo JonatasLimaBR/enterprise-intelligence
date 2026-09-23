@@ -29,6 +29,10 @@ resources:
           default: ${var.llm_endpoint}
         - name: contracts_dir
           default: ${workspace.file_path}/contracts
+        - name: metrics_dir
+          default: ${workspace.file_path}/metrics
+        - name: workload_repo
+          default: ${var.workload_repo}
       environments:
         - environment_key: default
           spec:
@@ -54,4 +58,6 @@ resources:
               - "--jira-project={{job.parameters.jira_project}}"
               - "--llm-endpoint={{job.parameters.llm_endpoint}}"
               - "--contracts-dir={{job.parameters.contracts_dir}}"
+              - "--metrics-dir={{job.parameters.metrics_dir}}"
+              - "--workload-repo={{job.parameters.workload_repo}}"
               - "--pipeline-id=${resources.pipelines.medallion.id}"

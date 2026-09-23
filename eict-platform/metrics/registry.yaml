@@ -1,0 +1,7 @@
+# Arquivos que o extrator varre. Sem esta lista, "código que ninguém declarou" seria
+# indetectável: só se procuraria onde já existe declaração.
+sources:
+  - path: eict-demo-workload/src/sales_daily.py
+    asset: workspace.eict_workload.sales_daily
+  - path: eict-demo-workload/src/sales_daily_small.py
+    asset: workspace.eict_workload.sales_daily
