@@ -10,6 +10,7 @@ from eict.domain.rules import (
     VIOLATED,
     RuleCompilationError,
     compile_rule,
+    conforming_columns,
     evaluate,
     evaluate_freshness,
     evaluate_schema,
@@ -271,3 +272,28 @@ def test_schema_com_coluna_nova_passa_informando():
 
     assert status == PASSED
     assert "canal" in detalhe
+
+
+def test_ratio_do_schema_conta_colunas_integras():
+    """Uma coluna faltando em três declaradas é 2/3 de conformidade, não 1/3."""
+    colunas = [
+        ColumnSpec(name="customer_id", type="string"),
+        ColumnSpec(name="customer_name", type="string"),
+        ColumnSpec(name="region", type="string"),
+    ]
+
+    integras = conforming_columns(colunas, {"customer_id": "string", "customer_name": "string"})
+
+    assert integras == 2
+
+
+def test_tipo_divergente_nao_conta_como_integra():
+    colunas = [ColumnSpec(name="amount", type="double")]
+
+    assert conforming_columns(colunas, {"amount": "string"}) == 0
+
+
+def test_coluna_nova_nao_infla_a_conformidade():
+    colunas = [ColumnSpec(name="order_id", type="string")]
+
+    assert conforming_columns(colunas, {"order_id": "string", "canal": "string"}) == 1

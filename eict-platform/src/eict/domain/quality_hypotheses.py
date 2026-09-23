@@ -99,6 +99,16 @@ def _pipeline_failure(context: QualityContext, incident_id: str, record) -> Hypo
                 "violação é de freshness, compatível com produtor parado",
             )
         )
+    elif context.dimension in STRUCTURAL_DIMENSIONS and confidence > CONTRADICTED_CONFIDENCE:
+        confidence = CONTRADICTED_CONFIDENCE
+        contradicting.append(
+            record(
+                "dimension",
+                f"asset/{context.asset}",
+                f"violação de {context.dimension} não se explica por produtor parado: "
+                "um pipeline que não rodou deixa o dado velho, não estruturalmente diferente",
+            )
+        )
 
     return Hypothesis(
         hypothesis_id=stable_id("hyp", incident_id, "pipeline_failure"),

@@ -182,3 +182,34 @@ def test_toda_hipotese_tem_evidencia_registrada():
     for hypothesis in analysis.hypotheses:
         citados = set(hypothesis.supporting + hypothesis.contradicting + hypothesis.missing)
         assert citados <= ids
+
+
+def test_produtor_parado_nao_explica_violacao_de_schema():
+    """Um pipeline que não rodou deixa o dado velho, não com coluna a menos."""
+    contexto = make_context(dimension="schema", producer_ran_in_window=False)
+
+    analise = analyze(contexto, INCIDENT, NOW)
+    pipeline = next(h for h in analise.hypotheses if h.code == "pipeline_failure")
+
+    assert pipeline.confidence == 0.05
+    assert pipeline.contradicting
+    assert pipeline.rank > 1
+
+
+def test_produtor_parado_continua_explicando_freshness():
+    contexto = make_context(dimension="freshness", producer_ran_in_window=False)
+
+    analise = analyze(contexto, INCIDENT, NOW)
+    pipeline = next(h for h in analise.hypotheses if h.code == "pipeline_failure")
+
+    assert pipeline.confidence == 0.75
+    assert pipeline.rank == 1
+
+
+def test_violacao_referencial_com_produtor_parado_tambem_e_contradita():
+    contexto = make_context(dimension="referential", producer_failed=True)
+
+    analise = analyze(contexto, INCIDENT, NOW)
+    pipeline = next(h for h in analise.hypotheses if h.code == "pipeline_failure")
+
+    assert pipeline.confidence == 0.05

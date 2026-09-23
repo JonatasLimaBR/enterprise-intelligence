@@ -99,6 +99,19 @@ def undeclared_columns(expected: list[ColumnSpec], actual: dict[str, str]) -> li
     return sorted(name for name in actual if name not in declared)
 
 
+def conforming_columns(expected: list[ColumnSpec], actual: dict[str, str]) -> int:
+    """Colunas presentes e com o tipo declarado.
+
+    Serve de numerador para que o `ratio` do schema signifique conformidade, como
+    nas demais dimensões: maior é melhor, e 100% é o contrato cumprido.
+    """
+    return sum(
+        1
+        for column in expected
+        if column.name in actual and _same_type(column.type, actual[column.name])
+    )
+
+
 def _same_type(declared: str, actual: str) -> bool:
     return _normalize_type(declared) == _normalize_type(actual)
 

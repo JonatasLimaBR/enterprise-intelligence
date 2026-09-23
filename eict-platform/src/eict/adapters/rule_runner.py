@@ -9,9 +9,9 @@ from eict.domain.contracts import Contract, Rule
 from eict.domain.models import RuleResult, stable_id
 from eict.domain.rules import (
     EVALUATION_ERROR,
-    PASSED,
     RuleCompilationError,
     compile_rule,
+    conforming_columns,
     evaluate,
     evaluate_freshness,
     evaluate_schema,
@@ -116,7 +116,7 @@ def _run_schema(spark: Any, contract: Contract, rule: Rule, now: datetime) -> Ru
         now,
         status=status,
         query_hash=stable_id("schema", contract.asset, ",".join(sorted(actual))),
-        numerator=0 if status == PASSED else 1,
+        numerator=conforming_columns(contract.columns, actual),
         denominator=len(contract.columns),
         detail=detail,
     )
