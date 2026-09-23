@@ -242,7 +242,7 @@ Fecha o programa de qualidade (PRD-020, features 1–3).
 | Herda o raio | ✅ **verificado em produção**: `warning → critical` pelo painel comercial |
 | Auto-resolução | ✅ **3 incidentes fechados no 1º ciclo real**, cada um com entrada `auto_resolved` |
 | Ontologia | ✅ `ops.ontology_edges` — 179 arestas, 164 `discovered` (0,85) e 15 `asserted` (1,0) |
-| Duração do ciclo | ⚠️ **9min19s** (+15s, uma medição); `semantics` 10,5s; `correlate` 122s, acima da faixa |
+| Duração do ciclo | ⚠️ etapa `semantics` custa **10,5–13,6s**; relógio sem fila 9min19s e 9min49s — oscila com o provisionamento |
 | Testes | ✅ **331** (76 novos) · ruff limpo · pureza do domínio mantida |
 
 **Como a auto-resolução decide:** `domain/resolution.py` recebe dois conjuntos de
@@ -264,8 +264,19 @@ explicitamente ao job como `contracts_dir`. Deploy da demo:
 - Com `sales_daily` em dois arquivos, falhar a busca de um apagaria o conflito e fecharia o
   incidente — por isso "avaliado" exige todos os arquivos.
 
-**Pendências:** AT-15 (runtime) coberto só por teste; repetir a medição do SC14; dois incidentes
-de `sales_daily` com estado `resolved`, que não existe no código (gravado à mão em 2026-09-22).
+- `edge_id` da ontologia não incluía a origem; `merge()` preserva a aresta descoberta ao lado da
+  afirmada, as duas colidiam e **o MERGE falhava a partir do segundo ciclo** (o primeiro só
+  insere). O ship verificou um ciclo só — por isso passou. Corrigido em `97c07b0`; as 179 linhas
+  com id antigo seguem na tabela como resíduo inofensivo.
+
+**Baseline sem janela (achado, não corrigido):** `compute_baseline` usa **todos** os runs de
+sucesso da história do job. Run lento que não virou incidente fica no baseline para sempre: o job
+pequeno tem três runs `heavy` (379s, 284s, 221s), o limiar sobe para ~500s e o run pesado (~390s)
+não abre incidente. Por isso o AT-15 não é reproduzível em execução real neste workspace, nem com
+`prepare_small_job.sh`. Merece decisão (janela dos N runs mais recentes).
+
+**Pendências:** AT-15 (runtime) coberto só por teste; dois incidentes de `sales_daily` com estado
+`resolved`, que não existe no código (gravado à mão em 2026-09-22) — o `reset_demo.sh` os elimina.
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_SEMANTIC_REGISTRY/SHIPPED_2026-09-23.md`.
 
