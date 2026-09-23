@@ -138,32 +138,136 @@ para 7 min com as medições anexadas. Arquivo: `.claude/sdd/archive/EICT_DEMO_K
 | Quebra reversível | ✅ `break_contract.py` com 4 modos + `restore` (testado: 4,8M linhas quebradas e restauradas) |
 | RCA de qualidade | ✅ violação **real** de freshness detectada; `pipeline_failure` em 1º com **0,75** |
 | Agrupamento por ativo | ✅ 2 regras violadas em `orders` → **1** incidente com 2 evidências |
-| Duração do ciclo | ⚠️ **10,5 min** (era 18,2) — a 30s do critério SC8 |
-| Testes | ✅ **190** (78 novos) · ruff limpo |
+| Gate de schema | ✅ coluna removida de `customers` → violação `blocking`, `ratio` 0,667 |
+| Uniqueness isolado | ✅ 1.225.417 duplicatas em `orders` detectadas com amostra de chaves |
+| Duração do ciclo | ⚠️ **9min44s a 10min16s** em 3 medições (era 18,2) — oscila em torno do SC8 |
+| Testes | ✅ **206** · ruff limpo |
 
 **Ciclo:** uma única task Python roda `bootstrap → collect → medallion → quality → correlate → narrate → dispatch`, disparando o pipeline Lakeflow pelo SDK. Uma etapa que falha não derruba as demais; o job falha no fim se alguma falhou.
 
 **Custo de execução medido:** as 12 regras rodam em segundos — 2,6s a regra de completeness e
 3,8s o join referencial de 60M × 100k, com o warehouse aquecido. A partida a frio custa 27s.
 
-**Custo do ciclo (medido, 10,5 min):** bootstrap 51s · collect 51s · medallion 92s · quality 60s ·
-**correlate 173s** · narrate 14s · dispatch 0s, mais ~3 min de provisionamento do ambiente Python.
+**Custo do ciclo (3 medições):** as etapas somaram 332s, 402s e 309s; o relógio marcou 9min52s,
+9min44s e 10min16s. O correlate caiu de **173s para 96–112s** agrupando as consultas de billing
+numa só (`billing_facts`). O que sobra e oscila é o provisionamento do ambiente Python, de ~3 a
+~5 min — é ele, e não mais o código, que decide se o ciclo cruza os 10 minutos. Fechar o SC8 com
+folga exige atacar o provisionamento (enxugar dependências), não as etapas.
 
 **Lição de estrutura:** o Databricks reaproveita o ambiente entre tasks **consecutivas**. Fundir 7
 tasks em 3 *piorou* o tempo (19,8 min), porque o pipeline Lakeflow no meio quebrou esse
-reaproveitamento. Uma task só, disparando o pipeline pelo SDK, derrubou para 10,5 min.
+reaproveitamento. Uma task só, disparando o pipeline pelo SDK, derrubou para 10,5 min; agrupar
+o billing fechou em 9min44s.
 
-**Próxima otimização:** o correlator consulta billing uma vez por run do baseline (173s, ~40% do
-trabalho). Agrupar essas consultas fecharia o SC8.
+**Bugs que só um ciclo com vários ativos revelou** (corrigidos, com teste):
+- `persist()` carimbava **todas** as evidências e hipóteses com um `incident_id` tirado
+  arbitrariamente de um `set`. Com um incidente por ciclo passava; com quatro, as hipóteses de
+  um ativo iam parar no incidente de outro. Agora cada item viaja emparelhado com seu incidente.
+- O incidente de `quality_engine_failure` renascia a cada ciclo quando o mesmo ativo também
+  tinha violação: a lista de abertos era filtrada só por `subject`, ignorando o `type`.
+- O `ratio` da dimensão `schema` era `1/nº de colunas` (maior = pior), invertido em relação às
+  demais. Agora é conformidade: colunas íntegras sobre declaradas.
+- `pipeline_failure` liderava violações de `schema` e `referential` com 0,50. Produtor parado
+  deixa dado velho, não coluna a menos — passou a ser contraditado nas dimensões estruturais e
+  caiu para 0,05. Com a coluna `region` removida à mão, a lista passa a ser encabeçada por
+  `change_temporal_only` (0,30) — que é a resposta honesta: nada na evidência identifica o autor.
 
-Arquivo do ciclo: `.claude/sdd/archive/EICT_DATA_CONTRACTS/SHIPPED_2026-09-22.md`. As features 2
-e 3 do programa de qualidade (impact engine e registry semântico) seguem no backlog.
+Arquivo do ciclo: `.claude/sdd/archive/EICT_DATA_CONTRACTS/SHIPPED_2026-09-22.md`. A feature 3
+do programa (registry semântico, DQ-03/DQ-04) foi entregue em 2026-09-23 — ver abaixo.
+
+### Impact engine (feature EICT_IMPACT_ENGINE — ✅ Shipped em 2026-09-22)
+
+| Item | Estado |
+|------|--------|
+| Travessia ponderada | ✅ largura com relaxação, profundidade e direção configuráveis |
+| Grafo materializado | ✅ `ops.lineage_graph` — **77 arestas**, 33 origens, `first_seen`/`last_seen` |
+| Arestas incertas | ✅ **40 das 77 (52%)** sem `entity_type` — marcadas e ponderadas para baixo |
+| Score por incidente | ✅ `orders` 1,675 (6 ativos) · `customers` 0,975 (4) · `sales_daily` 0,85 (2) |
+| Escada de severidade | ✅ unificada em `domain/severity.py`: info < warning < **high** < critical < blocking |
+| Elevação com teto | ✅ **verificada em produção**: `warning → critical` com a aresta gravada |
+| `upstream_change` destravada | ⚠️ coberta por teste; exige mudança real de schema a montante |
+| Duração do ciclo | ✅ **9min04s**, correlate 90,7–110,8s — dentro da faixa anterior (96–112s) |
+| Testes | ✅ **255** (49 novos) · ruff limpo · pureza do domínio mantida |
+
+**O que o motor faz:** percorre `ops.lineage_graph` a partir do ativo ou job do incidente, pondera
+cada aresta por recência, confiança, criticidade e ambiente, e agrega um score. Quando o raio
+alcança consumo humano (dashboard), eleva a severidade — **no máximo até `critical`**. Só regra
+`blocking` do contrato bloqueia: aresta inferida não trava pipeline (ADR-005, ADR-007).
+
+**A travessia busca o melhor caminho, não o mais curto.** Um salto por aresta incerta vale
+`0,4 × 0,5 = 0,20`; dois saltos confirmados valem `1,0 × 1,0 × 0,5² = 0,25`. Parar na primeira
+visita subestimaria o impacto justamente quando o atalho é o duvidoso.
+
+**A prova mais forte:** a plataforma elevou sozinha um incidente de `warning` para `critical`
+porque o raio alcançava o painel comercial a um salto, gravando a aresta que justificou —
+*"raio atinge consumo humano em `DASHBOARD_V3/01f1b48…` a 1 salto(s), peso 0.500"*.
+
+**Bug pré-existente corrigido aqui — severidade herdada de problema já resolvido.**
+`load_recent_results` carrega 6 horas de resultados e `incident_severity` tirava o máximo sobre
+**todas** as avaliações da janela. Um incidente aberto *depois* de a violação ser corrigida nascia
+com a severidade dela. `latest_per_rule` reduz à avaliação mais recente de cada regra: a janela
+continua tolerando um ciclo sem etapa de qualidade, mas a resposta passa a ser "o que está violado
+agora".
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_IMPACT_ENGINE/SHIPPED_2026-09-22.md`.
+
+**Lacuna fechada pela feature seguinte:** incidentes não se auto-resolviam — ver a auto-resolução
+em *Registry semântico* abaixo.
+
+**Armadilhas resolvidas no desenho, antes de custarem um ciclo:**
+- O `MERGE` usa `UPDATE SET *` e sobrescreveria `schema_fingerprint` antes de qualquer leitura —
+  a mudança de schema upstream seria invisível para sempre. A linha guarda `previous_fingerprint`
+  e a comparação mora dentro de `merge_graph`, sem depender da ordem das chamadas.
+- `refresh_graph` chegou a rodar **duas vezes por ciclo** ao ligar o correlator de qualidade,
+  duplicando `observed_cycles`. Movido para o `main`, com o mesmo grafo passado aos dois.
+
+**Suposição ainda não validada:** `DECAY_PER_HOP = 0,5` é chute fundamentado. Com um grafo de 3
+saltos não há base para calibrar. Está isolado como constante versionada.
 
 **Armadilhas do Delta encontradas aqui (valem para qualquer mudança futura):**
 - Renomear coluna exige column mapping e **muda o protocolo da tabela**. Por isso `subject` foi
   adicionada e preenchida a partir de `job_id`, que segue gravada em paralelo.
 - `UPDATE` recusa expressão não determinística: `rand()` não passa; use hash da chave.
 - Engolir exceção de migração esconde a falha por ciclos inteiros — sempre logar o inesperado.
+
+### Registry semântico (feature EICT_SEMANTIC_REGISTRY — ✅ Shipped em 2026-09-23)
+
+Fecha o programa de qualidade (PRD-020, features 1–3).
+
+| Item | Estado |
+|------|--------|
+| Extração por AST | ✅ `agg`/`groupBy`/`withColumn`/constantes — 18 observações reais, 10 `extraida`, 8 `parcial` |
+| Conflito real de `revenue` | ✅ `sales_daily_small.py:33 → F.sum('amount')` × `:49 → F.sum('net_amount')` |
+| Incidente `semantic_conflict` | ✅ só divergência bloqueante (fórmula, grão, código × canônica); nasce `warning` |
+| Herda o raio | ✅ **verificado em produção**: `warning → critical` pelo painel comercial |
+| Auto-resolução | ✅ **3 incidentes fechados no 1º ciclo real**, cada um com entrada `auto_resolved` |
+| Ontologia | ✅ `ops.ontology_edges` — 179 arestas, 164 `discovered` (0,85) e 15 `asserted` (1,0) |
+| Duração do ciclo | ⚠️ **9min19s** (+15s, uma medição); `semantics` 10,5s; `correlate` 122s, acima da faixa |
+| Testes | ✅ **331** (76 novos) · ruff limpo · pureza do domínio mantida |
+
+**Como a auto-resolução decide:** `domain/resolution.py` recebe dois conjuntos de
+`(subject, type)` — avaliados agora e violando agora — e fecha como `recovered` só o que está
+no primeiro e não no segundo. **Ausência de avaliação nunca resolve.** Cada tipo diz o que é
+"avaliado": regra com resultado corrente; job cujo run mais recente teve **sucesso** e baseline;
+ativo semântico cujos arquivos do `registry.yaml` foram **todos** extraídos.
+
+**Configuração:** a etapa `semantics` lê o repositório de `workload_repo` (variável do bundle,
+separada de `github_repo` para não mudar o `collect`) e o registry de `metrics_dir`, passado
+explicitamente ao job como `contracts_dir`. Deploy da demo:
+`--var=warehouse_id=6836da016907f9bc,workload_repo=JonatasLimaBR/enterprise-intelligence`.
+
+**Bugs que só a auto-resolução revelou** (corrigidos, com teste):
+- O correlator de runtime reavalia o histórico inteiro; fechado o incidente, o run lento que o
+  abriu **reabria o mesmo incidente** no ciclo seguinte. Já valia para fechamento manual.
+  `load_closed_until` marca o que foi julgado.
+- Fechado o incidente, o run lento voltava ao baseline e escondia a regressão seguinte.
+- Com `sales_daily` em dois arquivos, falhar a busca de um apagaria o conflito e fecharia o
+  incidente — por isso "avaliado" exige todos os arquivos.
+
+**Pendências:** AT-15 (runtime) coberto só por teste; repetir a medição do SC14; dois incidentes
+de `sales_daily` com estado `resolved`, que não existe no código (gravado à mão em 2026-09-22).
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_SEMANTIC_REGISTRY/SHIPPED_2026-09-23.md`.
 
 ---
 
