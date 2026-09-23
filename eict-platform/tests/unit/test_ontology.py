@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from eict.domain.impact import Edge
@@ -150,3 +151,16 @@ def test_as_relacoes_sem_fonte_nao_sao_suportadas():
 
 def test_merge_sem_entradas_devolve_vazio():
     assert merge([], []) == ()
+
+
+def test_ids_sao_unicos_quando_a_mesma_tripla_vem_de_duas_origens():
+    """A afirmada e a descoberta convivem; na tabela, precisam de chaves diferentes."""
+    afirmadas = from_contracts([_Contrato(consumers=("painel",))], NOW)
+    consome = next(item for item in afirmadas if item.predicate == CONSUMES)
+    descoberta = replace(consome, origin="lineage", status="discovered")
+
+    arestas = merge(afirmadas, [descoberta])
+    ids = [item.edge_id for item in arestas]
+
+    assert len(arestas) == len(afirmadas) + 1
+    assert len(ids) == len(set(ids))

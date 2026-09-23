@@ -48,7 +48,12 @@ class OntologyEdge:
 
     @property
     def edge_id(self) -> str:
-        return stable_id("ont", self.subject, self.predicate, self.object)
+        """A origem faz parte da identidade.
+
+        `merge` preserva a aresta descoberta ao lado da afirmada para a mesma tripla. Sem a
+        origem no id, as duas colidem na chave do MERGE e o segundo ciclo falha.
+        """
+        return stable_id("ont", self.subject, self.predicate, self.object, self.origin)
 
     @property
     def rank(self) -> int:
