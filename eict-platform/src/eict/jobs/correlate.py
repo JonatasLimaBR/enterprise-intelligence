@@ -87,15 +87,17 @@ def load_active_incidents(spark: Any, settings: Settings) -> list[Incident]:
     ]
 
 
-def load_closed_until(spark: Any, settings: Settings) -> dict[str, datetime]:
-    """Para cada job, o instante do último fechamento de um incidente de runtime."""
+def load_closed_until(
+    spark: Any, settings: Settings, incident_type: str = RUNTIME_REGRESSION
+) -> dict[str, datetime]:
+    """Para cada job, o instante do último fechamento de um incidente do tipo."""
     states = ", ".join(f"'{state}'" for state in sorted(CLOSED_INCIDENT_STATES))
     records = store.query(
         spark,
         f"""
         SELECT subject, max(updated_at) AS fechado_em
         FROM {settings.table('ops', 'incidents')}
-        WHERE type = '{RUNTIME_REGRESSION}' AND state IN ({states})
+        WHERE type = '{incident_type}' AND state IN ({states})
         GROUP BY subject
         """,
     )
@@ -589,6 +591,23 @@ def main(argv: list[str] | None = None) -> None:
         load_closed_until(spark, settings),
         regimes,
     )
+    try:
+        from eict.domain.incidents import COST_REGRESSION
+        from eict.jobs import cost_regression
+
+        cost_touched = cost_regression.run(
+            spark,
+            settings,
+            features,
+            load_active_incidents(spark, settings),
+            capabilities,
+            regimes,
+            load_closed_until(spark, settings, COST_REGRESSION),
+            now,
+        )
+        logger.info("custo: %s incidentes tocados", cost_touched)
+    except Exception as exc:
+        logger.warning("regressão de custo não avaliada neste ciclo: %s", exc)
     quality_touched = correlate_quality_incidents(
         spark,
         settings,

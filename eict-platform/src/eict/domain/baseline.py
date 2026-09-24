@@ -74,19 +74,20 @@ def volume_band(run: Run) -> int | None:
     return int(math.floor(math.log2(run.input_rows)))
 
 
-def threshold(sample: list[float]) -> tuple[float, float, float, str]:
+def threshold(sample: list[float], floor: float = FLOOR_S) -> tuple[float, float, float, str]:
     """Mediana, MAD, limiar e o termo que decidiu o limiar.
 
     O limiar é o maior de três: a razão pega a regressão proporcional, o MAD tolera a
-    dispersão natural sem ser arrastado por um atípico, e o piso impede alerta em job de
-    30s por variação de 10s. `MAD = 0` é seguro: os outros dois termos continuam valendo.
+    dispersão natural sem ser arrastado por um atípico, e o piso impede alerta por variação
+    pequena em valor absoluto — 30s no runtime, alguns centavos no custo. `MAD = 0` é seguro:
+    os outros dois termos continuam valendo.
     """
     median = statistics.median(sample)
     mad = statistics.median(abs(value - median) for value in sample)
     termos = {
         RATIO_TERM: RATIO * median,
         MAD_TERM: median + K_MAD * mad,
-        FLOOR_TERM: median + FLOOR_S,
+        FLOOR_TERM: median + floor,
     }
     termo = max(termos, key=lambda nome: termos[nome])
     return median, mad, termos[termo], termo

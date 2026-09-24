@@ -12,6 +12,7 @@ CONTRACT_VIOLATION = "contract_violation"
 QUALITY_ENGINE_FAILURE = "quality_engine_failure"
 SEMANTIC_CONFLICT = "semantic_conflict"
 SLA_RISK = "sla_risk"
+COST_REGRESSION = "cost_regression"
 DEFAULT_SEVERITY = "high"
 
 
