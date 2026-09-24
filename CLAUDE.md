@@ -354,6 +354,25 @@ adulterada num servidor fora de UTC.
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_AUDIT_RBAC/SHIPPED_2026-09-24.md`.
 
+### Saúde dos conectores (feature EICT_CONNECTOR_HEALTH — ✅ Shipped em 2026-09-24, não publicado)
+
+| Item | Estado |
+|------|--------|
+| Classificação | ✅ 4xx (exceto 408/429) ⇒ `permanente` ⇒ quarentena na 1ª falha; 5xx/408/429/rede ⇒ `transitorio` |
+| Backoff | ✅ `5 min × 2ⁿ`, teto 6 h; quarentena após 5 tentativas |
+| DLQ | ✅ uma linha por mensagem (`MERGE`), com `attempts`, `next_attempt_at`, `status`; legados consolidados na leitura |
+| Saúde | ✅ `ops.connector_health` por ciclo: `saudavel` · `degradado` · `falhando` · `sem_dados`; painel no console |
+| Testes | ✅ **477** (24 novos) · ruff limpo |
+
+O caso que motivou: o commit `090e793` (inexistente no repositório) foi buscado 7× em 3 dias com
+422, sem ninguém ver. Hoje ele vai para a quarentena na primeira falha.
+
+**Publicação pendente (junto com auditoria):** o workspace recusa runs. Ordem ao liberar: ciclo
+(cria `audit_log`, `connector_health` e as colunas da DLQ) → deploy do App → verificação do
+risco de SLA.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_CONNECTOR_HEALTH/SHIPPED_2026-09-24.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
