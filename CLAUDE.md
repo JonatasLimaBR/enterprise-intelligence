@@ -373,6 +373,20 @@ risco de SLA.
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_CONNECTOR_HEALTH/SHIPPED_2026-09-24.md`.
 
+### Baseline de custo (feature EICT_COST_BASELINE — ✅ Shipped em 2026-09-24, não publicado)
+
+| Item | Estado |
+|------|--------|
+| Custo | ✅ de todo run dos jobs monitorados, numa consulta ao billing |
+| Estatística | ✅ a mesma do runtime, com piso de US$ 0,05 no lugar dos 30s; regime vigente |
+| Incidente | ✅ `cost_regression` (warning) **só quando o tempo não regrediu** — senão o runtime já cobre |
+| Resolução | ✅ auto-resolução e `closed_until` por tipo (fechado não renasce) |
+| Testes | ✅ **499** (14 novos) · ruff limpo |
+
+Fecha os três Must de "anomaly" da Fase 1: runtime, freshness/SLA e custo.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_COST_BASELINE/SHIPPED_2026-09-24.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
