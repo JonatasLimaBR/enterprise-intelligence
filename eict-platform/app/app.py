@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 import os
 import uuid
@@ -7,6 +8,8 @@ from datetime import UTC, datetime
 
 import streamlit as st
 from acceptance import IDENTITY_HEADER, refusal, statements
+from access import ACCEPT_REGIME, REVIEW_HYPOTHESIS, VIEW_AUDIT, authorize, can, load_directory
+from audit import ADULTERADA, BIFURCADA, entry, verify
 from databricks import sql
 from databricks.sdk.core import Config
 
@@ -200,6 +203,72 @@ def render_diff(healthy: dict | None, current: dict) -> None:
     st.dataframe(rows, use_container_width=True, hide_index=True)
 
 
+@st.cache_resource
+def directory():
+    return load_directory()
+
+
+def identity() -> str | None:
+    """Sempre o cabeçalho do Databricks Apps: nunca um e-mail digitado."""
+    return st.context.headers.get(IDENTITY_HEADER)
+
+
+def append_audit(decision, target: str) -> None:
+    """Grava a decisão na trilha, encadeada à última linha. Vem antes da escrita de negócio."""
+    ultima = query(
+        f"SELECT seq, hash FROM {table('ops', 'audit_log')} ORDER BY seq DESC, audit_id DESC LIMIT 1"
+    )
+    linha = entry(
+        ultima[0] if ultima else None,
+        datetime.now(UTC),
+        decision.actor,
+        decision.roles,
+        decision.action,
+        target,
+        "allowed" if decision.allowed else "denied",
+        decision.reason,
+    )
+    execute(
+        f"INSERT INTO {table('ops', 'audit_log')} "
+        "(seq, audit_id, at, actor, identity_source, roles, action, target, decision, reason, prev_hash, hash) "
+        "VALUES (:seq, :audit_id, :at, :actor, :identity_source, :roles, :action, :target, :decision, "
+        ":reason, :prev_hash, :hash)",
+        linha,
+    )
+
+
+def guarded(action: str, target: str, run) -> bool:
+    """Autoriza, audita (permitido ou negado) e só então age."""
+    decision = authorize(directory(), identity(), action)
+    append_audit(decision, target)
+    if not decision.allowed:
+        st.error(f"Ação negada: {decision.reason}")
+        return False
+    run()
+    return True
+
+
+def render_audit() -> None:
+    st.title("Auditoria")
+    st.caption("Decisões humanas no console, permitidas e negadas. Trilha append-only com cadeia de hash.")
+    rows = query(f"SELECT * FROM {table('ops', 'audit_log')} ORDER BY seq, audit_id")
+    veredito = verify(rows)
+    if veredito.status == ADULTERADA:
+        st.error(f"Trilha adulterada — {veredito.detail}")
+    elif veredito.status == BIFURCADA:
+        st.warning(f"Trilha íntegra com escritas concorrentes nas linhas {sorted(set(veredito.forks))}")
+    else:
+        st.success(f"Trilha íntegra · {len(rows)} registro(s)")
+    st.dataframe(
+        [
+            {campo: row[campo] for campo in ("seq", "at", "actor", "roles", "action", "target", "decision", "reason")}
+            for row in reversed(rows)
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+
 def accept_regime(incident: dict, email: str, reason: str) -> None:
     """Aceita o nível atual como novo normal: regime, incidente fechado e timeline."""
     first = query(
@@ -220,13 +289,13 @@ def render_acceptance(incident: dict) -> None:
             "Use quando a mudança é intencional. O baseline recomeça no primeiro run deste "
             "incidente e o incidente é fechado como decisão, registrando quem aceitou e por quê."
         )
-        email = st.context.headers.get(IDENTITY_HEADER)
+        email = identity()
         reason = st.text_area("Justificativa", key=f"regime-{incident['incident_id']}")
         recusa = refusal(email, reason)
         st.caption(f"Identidade: {email}" if email else "Identidade não encaminhada.")
         if st.button("Aceitar regime", key=f"accept-{incident['incident_id']}", disabled=recusa is not None):
-            accept_regime(incident, email, reason)
-            st.rerun()
+            if guarded(ACCEPT_REGIME, incident["incident_id"], lambda: accept_regime(incident, email, reason)):
+                st.rerun()
         if recusa and (reason or not email):
             st.caption(recusa)
 
@@ -246,6 +315,19 @@ def _render(value) -> str:
         return f"{value:,.2f}"
     return str(value)
 
+
+usuario = identity()
+papeis = directory().roles_of(usuario)
+st.sidebar.caption(
+    f"{usuario or 'identidade não encaminhada'} · "
+    + (", ".join(sorted(papeis)) if papeis else "só leitura")
+)
+if directory().error:
+    st.sidebar.warning(directory().error)
+visoes = ["Incidentes"] + (["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else [])
+if st.sidebar.radio("Visão", visoes) == "Auditoria":
+    render_audit()
+    st.stop()
 
 st.title("EICT - Control Tower")
 st.caption("Incidentes correlacionados com evidência, impacto e custo")
@@ -315,7 +397,8 @@ if incident["type"] == "runtime_regression":
         {"job_id": incident["subject"], "before": incident["detected_at"]},
     )
     render_diff(healthy_rows[0] if healthy_rows else None, current)
-    if incident["state"] in ("detected", "triaged", "investigating", "mitigating", "monitoring"):
+    ativo = incident["state"] in ("detected", "triaged", "investigating", "mitigating", "monitoring")
+    if ativo and can(directory(), usuario, ACCEPT_REGIME):
         render_acceptance(incident)
 else:
     st.subheader("Regras violadas")
@@ -338,16 +421,19 @@ for hypothesis in load_hypotheses(incident["incident_id"]):
             for evidence_id in ids:
                 item = evidence.get(evidence_id)
                 st.markdown(f"- `{evidence_id}` {item['summary'] if item else NOT_AVAILABLE}")
-        if status not in ("confirmed", "rejected"):
-            reviewer = st.text_input("Seu e-mail", key=f"reviewer-{hypothesis['hypothesis_id']}")
-            note = st.text_input("Nota", key=f"note-{hypothesis['hypothesis_id']}")
+        if status not in ("confirmed", "rejected") and can(directory(), usuario, REVIEW_HYPOTHESIS):
+            hyp_id = hypothesis["hypothesis_id"]
+            note = st.text_input("Nota", key=f"note-{hyp_id}")
             columns = st.columns(2)
-            if columns[0].button("Confirmar causa", key=f"confirm-{hypothesis['hypothesis_id']}"):
-                save_review(incident["incident_id"], hypothesis["hypothesis_id"], "confirmed", reviewer, note)
-                st.rerun()
-            if columns[1].button("Descartar", key=f"reject-{hypothesis['hypothesis_id']}"):
-                save_review(incident["incident_id"], hypothesis["hypothesis_id"], "rejected", reviewer, note)
-                st.rerun()
+            botoes = ((columns[0], "Confirmar causa", "confirmed"), (columns[1], "Descartar", "rejected"))
+            for coluna, rotulo, decisao in botoes:
+                if not coluna.button(rotulo, key=f"{decisao}-{hyp_id}"):
+                    continue
+                gravar = functools.partial(
+                    save_review, incident["incident_id"], hyp_id, decisao, usuario, note
+                )
+                if guarded(REVIEW_HYPOTHESIS, hyp_id, gravar):
+                    st.rerun()
 
 st.subheader("Impacto")
 descobertos = list(incident.get("affected_assets") or [])

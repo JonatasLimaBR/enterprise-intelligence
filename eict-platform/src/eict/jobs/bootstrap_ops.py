@@ -117,6 +117,20 @@ TABLES: dict[tuple[str, str], str] = {
         reviewed_by STRING,
         reviewed_at TIMESTAMP
     """,
+    ("ops", "audit_log"): """
+        seq BIGINT,
+        audit_id STRING NOT NULL,
+        at TIMESTAMP,
+        actor STRING,
+        identity_source STRING,
+        roles STRING,
+        action STRING,
+        target STRING,
+        decision STRING,
+        reason STRING,
+        prev_hash STRING,
+        hash STRING
+    """,
     ("ops", "monitored_jobs"): """
         job_id STRING NOT NULL,
         name STRING,
@@ -271,11 +285,23 @@ def ensure_volume(spark: Any, settings: Settings) -> None:
     spark.sql(f"CREATE VOLUME IF NOT EXISTS {settings.schema('platform')}.landing")
 
 
+# A trilha de auditoria recusa UPDATE e DELETE no próprio Delta; a cadeia de hash denuncia o
+# resto (tabela recriada ou editada por fora).
+TABLE_PROPERTIES: dict[tuple[str, str], str] = {
+    ("ops", "audit_log"): "'delta.appendOnly' = 'true'",
+}
+
+
 def ensure_tables(spark: Any, settings: Settings) -> None:
     for (layer, name), columns in TABLES.items():
+        propriedades = TABLE_PROPERTIES.get((layer, name))
+        clausula = f" TBLPROPERTIES ({propriedades})" if propriedades else ""
         spark.sql(
-            f"CREATE TABLE IF NOT EXISTS {settings.table(layer, name)} ({columns}) USING DELTA"
+            f"CREATE TABLE IF NOT EXISTS {settings.table(layer, name)} ({columns}) USING DELTA{clausula}"
         )
+    for (layer, name), propriedades in TABLE_PROPERTIES.items():
+        # Idempotente: garante a propriedade também em tabela criada antes dela existir.
+        spark.sql(f"ALTER TABLE {settings.table(layer, name)} SET TBLPROPERTIES ({propriedades})")
 
 
 def apply_migrations(spark: Any, settings: Settings) -> list[str]:
