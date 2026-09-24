@@ -269,6 +269,48 @@ def render_audit() -> None:
     )
 
 
+CONFIANCA = {"alta": "confiança alta", "baixa": "amostra pequena", "sem_dados": "sem dados"}
+
+
+def _valor(metrica: dict) -> str:
+    if metrica["value"] is None:
+        return "não medido"
+    if metrica["unit"] == "US$":
+        return f"US$ {metrica['value']:,.4f}"
+    if metrica["unit"] == "horas":
+        return f"{metrica['value']:.1f} h"
+    return f"{metrica['value']:.0f}"
+
+
+def render_executive() -> None:
+    """DASH-01 (SPEC-017): cada número com janela, fonte, amostra, fórmula e confiança."""
+    st.title("Resumo executivo")
+    try:
+        metricas = query(f"SELECT * FROM {table('ops', 'executive_summary')} ORDER BY metric_id")
+    except Exception:
+        st.info("O resumo é calculado pelo ciclo; aguardando o primeiro após a publicação.")
+        return
+    if not metricas:
+        st.info("Resumo ainda não calculado.")
+        return
+    st.caption(f"Calculado em {metricas[0]['computed_at']:%d/%m %H:%M} UTC · {metricas[0]['policy_version']}")
+    ordem = [
+        "active_incidents", "critical_incidents", "sla_at_risk", "impacted_assets",
+        "incremental_cost_usd", "mttr_hours", "mtta_hours", "administrative_closures", "unhealthy_connectors",
+    ]
+    por_id = {metrica["metric_id"]: metrica for metrica in metricas}
+    colunas = st.columns(3)
+    for posicao, metric_id in enumerate(item for item in ordem if item in por_id):
+        metrica = por_id[metric_id]
+        with colunas[posicao % 3]:
+            st.metric(metrica["label"], _valor(metrica), help=f"{metrica['formula']} · fonte: {metrica['source']}")
+            confianca = CONFIANCA.get(metrica["confidence"], metrica["confidence"])
+            st.caption(
+                f"{metrica['window']} · n={metrica['n']} · {confianca}"
+                + (f" · {metrica['detail']}" if metrica["detail"] else "")
+            )
+
+
 SAUDE_ICONE = {"saudavel": "🟢", "degradado": "🟡", "falhando": "🔴", "sem_dados": "⚪"}
 
 
@@ -341,8 +383,12 @@ st.sidebar.caption(
 if directory().error:
     st.sidebar.warning(directory().error)
 render_connector_health()
-visoes = ["Incidentes"] + (["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else [])
-if st.sidebar.radio("Visão", visoes) == "Auditoria":
+visoes = ["Resumo executivo", "Incidentes"] + (["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else [])
+visao = st.sidebar.radio("Visão", visoes)
+if visao == "Resumo executivo":
+    render_executive()
+    st.stop()
+if visao == "Auditoria":
     render_audit()
     st.stop()
 

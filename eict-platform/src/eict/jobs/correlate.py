@@ -556,6 +556,25 @@ def correlate_quality_incidents(
     return len(touched)
 
 
+def refresh_executive_summary(spark: Any, settings: Settings, now: datetime) -> int:
+    """Read model do DASH-01, recalculado ao fim do correlate: reflete o ciclo inteiro."""
+    from eict.domain import executive
+
+    incidentes = store.query(spark, f"SELECT * FROM {settings.table('ops', 'incidents')}")
+    custos = {
+        record["run_id"]: record
+        for record in store.query(spark, f"SELECT * FROM {settings.table('ops', 'run_cost')}")
+    }
+    try:
+        saude = store.query(spark, f"SELECT * FROM {settings.table('ops', 'connector_health')}")
+    except Exception as exc:
+        logger.info("saúde dos conectores indisponível para o resumo: %s", exc)
+        saude = []
+    linhas = executive.rows(executive.summarize(incidentes, custos, saude, now), now)
+    store.merge_rows(spark, settings.table("ops", "executive_summary"), linhas, ["metric_id"])
+    return len(linhas)
+
+
 def main(argv: list[str] | None = None) -> None:
     from pyspark.sql import SparkSession
 
@@ -618,6 +637,10 @@ def main(argv: list[str] | None = None) -> None:
         [item.run for item in features],
         regimes,
     )
+    try:
+        refresh_executive_summary(spark, settings, now)
+    except Exception as exc:
+        logger.warning("resumo executivo não atualizado neste ciclo: %s", exc)
     logger.info(
         "correlacionados: %s incidentes de runtime, %s de qualidade",
         len(touched),
