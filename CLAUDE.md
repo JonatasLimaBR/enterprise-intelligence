@@ -310,6 +310,32 @@ execução; `RATIO=2` não dispara +83% num job longo. O job pequeno tem regime 
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_ROBUST_BASELINE/SHIPPED_2026-09-24.md`.
 
+### Risco de SLA (feature EICT_SLA_RISK — ✅ Shipped em 2026-09-24, verificação real pendente)
+
+| Item | Estado |
+|------|--------|
+| Previsão | ✅ `folga = prazo − agora − restante do produtor − 600s de ciclo`; margem 300s |
+| SLOs cobertos | ✅ `slo.freshness` (janela) e `slo.delivery_time` (prazo diário no fuso) — o segundo antes ninguém avaliava |
+| Classes | `no_prazo` · `em_risco` (warning) · `inevitavel` (high) · `violado` · `sem_base` |
+| Incidente `sla_risk` | ✅ fecha por auto-resolução quando o dado chega; **superado** (`closed`) quando o prazo estoura |
+| Produtor | ✅ resolvido por nome normalizado **exato** em `ops.monitored_jobs`, com o run em andamento |
+| Livro | ✅ `ops.sla_predictions` com desfecho — base do KPI de precision/recall do PRD-010 |
+| Testes | ✅ **429** (41 novos) · ruff limpo |
+| Execução real | ⛔ **não verificada**: em 2026-09-24 19:11 UTC o workspace passou a recusar runs ("Triggering new runs for organization … disabled temporarily") |
+
+**Bug pré-existente corrigido:** `producer_states` casava o produtor por substring —
+`eict-demo-sales-daily` casava com `…eict-demo-sales-daily-small-dev` — e dependia de `job_name`,
+nulo em 18/28 runs. O estado do produtor do painel vinha dos runs do job pequeno.
+
+**Prazo diário:** "entregue hoje" = escrita da **meia-noite local** até o prazo. A primeira
+versão contava desde o prazo de ontem e aceitava entrega atrasada de ontem como a de hoje.
+
+**Para retomar a verificação** (≈ 45 min, quando os runs voltarem): run leve do job pequeno →
+8 min → ciclo (abre `sla_risk` para `sales_daily_small`) → run leve → ciclo (fecha). Roteiro em
+`.claude/sdd/archive/EICT_SLA_RISK/BUILD_REPORT_EICT_SLA_RISK.md`.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_SLA_RISK/SHIPPED_2026-09-24.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
