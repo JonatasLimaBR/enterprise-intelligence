@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import statistics
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -28,6 +29,41 @@ def percentile(values: list[float], fraction: float) -> float:
     return ordered[lower] * (1 - weight) + ordered[upper] * weight
 
 
+def execution_facts(runs: list[dict], catalog: str) -> dict:
+    """O mesmo par de runs lentos medido pela execução, sem o setup do serverless.
+
+    Vazio quando a história ainda não tem tempo de execução (antes do backfill): o kit
+    não inventa o número que não foi medido.
+    """
+    medidos = [
+        float(run["execution_s"])
+        for run in runs
+        if run["result_state"] == SUCCESS and run.get("execution_s") is not None
+    ]
+    if len(medidos) < 3:
+        return {}
+    lentos = sorted(medidos)[-2:]
+    saudaveis = sorted(medidos)[:-2]
+    mediana = statistics.median(saudaveis)
+    return {
+        "slow_run_execution_s": fact(
+            round(max(lentos)),
+            "execução do run lento em segundos (sem setup)",
+            f"{catalog}.eict_gold.run_features.execution_s",
+        ),
+        "baseline_median_execution_s": fact(
+            round(mediana, 1),
+            "mediana da execução dos runs saudáveis",
+            "derivado: mediana de run_features.execution_s dos runs saudáveis",
+        ),
+        "regression_factor_execution": fact(
+            round(max(lentos) / mediana, 1) if mediana else 0,
+            "fator de regressão na execução",
+            "derivado: slow_run_execution_s ÷ baseline_median_execution_s",
+        ),
+    }
+
+
 def main() -> None:
     incident = json.loads(os.environ["INCIDENT"])[0]
     hypotheses = json.loads(os.environ["HYPOTHESIS"])
@@ -42,6 +78,7 @@ def main() -> None:
     baseline_p95 = round(percentile(baseline, 0.95)) if baseline else 0
     slowest = round(max(slow)) if slow else 0
     top = next(item for item in hypotheses if int(item["rank"]) == 1)
+    execution = execution_facts(runs, catalog)
 
     facts = {
         "baseline_runs": fact(
@@ -127,6 +164,7 @@ def main() -> None:
             "BUILD_REPORT_EICT_DATAOPS_DEMO.md#bugs-encontrados-apenas-na-execução-real",
         ),
     }
+    facts.update(execution)
 
     document = {
         "collected_at": datetime.now(UTC).isoformat(timespec="seconds"),

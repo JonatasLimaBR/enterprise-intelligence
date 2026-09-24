@@ -1,0 +1,26 @@
+resources:
+  jobs:
+    eict_backfill_timing:
+      name: eict-backfill-timing-${bundle.target}
+      max_concurrent_runs: 1
+      performance_target: STANDARD
+      environments:
+        - environment_key: default
+          spec:
+            environment_version: "2"
+            dependencies:
+              - ../dist/*.whl
+      tasks:
+        # Avulso: lista a história inteira dos jobs monitorados e emite só execution.timing.
+        # Idempotente — rodar de novo não grava nada novo no bronze.
+        - task_key: backfill
+          environment_key: default
+          python_wheel_task:
+            package_name: eict
+            entry_point: backfill_timing
+            parameters:
+              - "--catalog=${var.catalog}"
+              - "--schema-prefix=${var.schema_prefix}"
+              - "--tenant-id=${var.tenant_id}"
+              - "--landing-dir=${var.landing_dir}"
+              - "--secret-scope=${var.secret_scope}"

@@ -1,0 +1,7 @@
+# Job pequeno da demo (eict-demo-sales-daily-small). A história anterior mistura runs leves e
+# heavy=true feitos durante testes do kit; o regime recomeça aqui, com o baseline de runs leves.
+job_id: "65105666981331"
+effective_from:
+  at: 2026-09-24T11:16:13Z
+owner: jonatascanal15@gmail.com
+reason: "baseline contaminado por runs heavy=true de teste; recomeça com runs leves"

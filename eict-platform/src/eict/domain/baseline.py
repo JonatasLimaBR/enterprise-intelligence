@@ -1,20 +1,54 @@
+"""Baseline de runtime: a quanto se compara um run para dizer que ele regrediu.
+
+Três escolhas sustentam este módulo, todas medidas em runs reais:
+
+- **A métrica é a execução, não a duração total.** Em serverless, a duração total inclui o
+  setup do ambiente, que oscilou de 125s a 285s entre runs idênticos. Um run leve chegou a
+  313s — 285 de setup e 27 de trabalho. O setup é ruído maior que o sinal.
+- **Estatística robusta.** Mediana e MAD, não p95: um único run atípico (o 73s entre runs de
+  ~28s) levava o p95 a esconder uma regressão de 95s.
+- **Regime.** Só entram runs do regime vigente. Sem isso, um run lento antigo fica no
+  baseline para sempre e eleva o limiar até nada mais disparar.
+"""
+
 from __future__ import annotations
 
+import math
 import statistics
 from dataclasses import dataclass
+from datetime import datetime
 
 from eict.domain.models import Run
 
+RATIO = 2.0
+K_MAD = 5.0
+FLOOR_S = 30.0
+WINDOW = 20
 MIN_SAMPLES = 5
-REGRESSION_FACTOR = 1.5
+POLICY_VERSION = "baseline-robust-v1"
+
+EXECUTION = "execution"
+TOTAL = "total"
+
+RATIO_TERM = "ratio"
+MAD_TERM = "mad"
+FLOOR_TERM = "floor"
+
 INSUFFICIENT_BASELINE = "insufficient_baseline"
 
 
 @dataclass(frozen=True)
 class Baseline:
-    p50_s: float
-    p95_s: float
+    median_s: float
+    mad_s: float
+    threshold_s: float
+    deciding_term: str
     n: int
+    metric: str = EXECUTION
+    band: int | None = None
+    band_fallback: bool = False
+    regime_start: datetime | None = None
+    policy_version: str = POLICY_VERSION
 
 
 @dataclass(frozen=True)
@@ -22,45 +56,101 @@ class RegressionVerdict:
     is_regression: bool
     baseline: Baseline | None
     reason: str | None = None
+    value_s: float | None = None
+    metric: str = EXECUTION
+
+
+def metric_of(run: Run) -> tuple[float, str]:
+    """Execução quando medida; senão a duração total — e o nome de qual foi usada."""
+    if run.execution_s is not None:
+        return float(run.execution_s), EXECUTION
+    return float(run.duration_s), TOTAL
+
+
+def volume_band(run: Run) -> int | None:
+    """`floor(log2(linhas))`: 4,8M e 6,0M caem na mesma faixa; 60M, em outra."""
+    if not run.input_rows or run.input_rows <= 0:
+        return None
+    return int(math.floor(math.log2(run.input_rows)))
+
+
+def threshold(sample: list[float]) -> tuple[float, float, float, str]:
+    """Mediana, MAD, limiar e o termo que decidiu o limiar.
+
+    O limiar é o maior de três: a razão pega a regressão proporcional, o MAD tolera a
+    dispersão natural sem ser arrastado por um atípico, e o piso impede alerta em job de
+    30s por variação de 10s. `MAD = 0` é seguro: os outros dois termos continuam valendo.
+    """
+    median = statistics.median(sample)
+    mad = statistics.median(abs(value - median) for value in sample)
+    termos = {
+        RATIO_TERM: RATIO * median,
+        MAD_TERM: median + K_MAD * mad,
+        FLOOR_TERM: median + FLOOR_S,
+    }
+    termo = max(termos, key=lambda nome: termos[nome])
+    return median, mad, termos[termo], termo
 
 
 def compute_baseline(
     history: list[Run],
     before: Run,
     excluded_run_ids: frozenset[str] = frozenset(),
+    regime_start: datetime | None = None,
 ) -> Baseline | None:
-    durations = sorted(
-        run.duration_s
+    _, metric = metric_of(before)
+    elegiveis = [
+        run
         for run in history
         if run.succeeded
+        and run.job_id == before.job_id
         and run.run_id != before.run_id
         and run.end_time <= before.start_time
         and run.run_id not in excluded_run_ids
-    )
-    if len(durations) < MIN_SAMPLES:
+        and (regime_start is None or run.start_time >= regime_start)
+        and metric_of(run)[1] == metric
+    ]
+    elegiveis.sort(key=lambda run: run.end_time)
+
+    band = volume_band(before)
+    da_faixa = [run for run in elegiveis if band is not None and volume_band(run) == band]
+    usar_faixa = len(da_faixa[-WINDOW:]) >= MIN_SAMPLES
+    amostra = (da_faixa if usar_faixa else elegiveis)[-WINDOW:]
+    if len(amostra) < MIN_SAMPLES:
         return None
+
+    median, mad, limiar, termo = threshold([metric_of(run)[0] for run in amostra])
     return Baseline(
-        p50_s=statistics.median(durations),
-        p95_s=_percentile(durations, 0.95),
-        n=len(durations),
+        median_s=median,
+        mad_s=mad,
+        threshold_s=limiar,
+        deciding_term=termo,
+        n=len(amostra),
+        metric=metric,
+        band=band if usar_faixa else None,
+        band_fallback=band is not None and not usar_faixa,
+        regime_start=regime_start,
     )
 
 
 def is_regression(run: Run, baseline: Baseline | None) -> bool:
     if baseline is None:
         return False
-    return run.duration_s > baseline.p95_s * REGRESSION_FACTOR
+    value, metric = metric_of(run)
+    return metric == baseline.metric and value > baseline.threshold_s
 
 
 def evaluate(
     run: Run,
     history: list[Run],
     excluded_run_ids: frozenset[str] = frozenset(),
+    regime_start: datetime | None = None,
 ) -> RegressionVerdict:
-    baseline = compute_baseline(history, run, excluded_run_ids)
+    value, metric = metric_of(run)
+    baseline = compute_baseline(history, run, excluded_run_ids, regime_start)
     if baseline is None:
-        return RegressionVerdict(False, None, INSUFFICIENT_BASELINE)
-    return RegressionVerdict(is_regression(run, baseline), baseline)
+        return RegressionVerdict(False, None, INSUFFICIENT_BASELINE, value, metric)
+    return RegressionVerdict(is_regression(run, baseline), baseline, None, value, metric)
 
 
 def last_healthy_run(
@@ -79,13 +169,3 @@ def last_healthy_run(
     if not candidates:
         return None
     return max(candidates, key=lambda run: run.end_time)
-
-
-def _percentile(sorted_values: list[float], fraction: float) -> float:
-    if len(sorted_values) == 1:
-        return sorted_values[0]
-    position = fraction * (len(sorted_values) - 1)
-    lower = int(position)
-    upper = min(lower + 1, len(sorted_values) - 1)
-    weight = position - lower
-    return sorted_values[lower] * (1 - weight) + sorted_values[upper] * weight

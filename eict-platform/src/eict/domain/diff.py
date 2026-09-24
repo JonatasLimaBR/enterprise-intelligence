@@ -9,6 +9,8 @@ DIMENSIONS: tuple[tuple[str, Callable[[RunFeatures], object | None]], ...] = (
     ("job_parameters", lambda features: _format_parameters(features)),
     ("environment", lambda features: features.run.env_hash),
     ("duration_s", lambda features: round(features.run.duration_s, 1)),
+    ("execution_s", lambda features: _rounded(features.run.execution_s)),
+    ("setup_s", lambda features: _rounded(features.run.setup_s)),
     ("input_rows", lambda features: features.run.input_rows),
     ("max_key_rows", lambda features: features.profile.max_key_rows if features.profile else None),
     ("median_key_rows", lambda features: features.profile.median_key_rows if features.profile else None),
@@ -64,3 +66,7 @@ def _format_parameters(features: RunFeatures) -> str | None:
     if not parameters:
         return None
     return ", ".join(f"{key}={value}" for key, value in sorted(parameters.items()))
+
+
+def _rounded(value: float | None) -> float | None:
+    return None if value is None else round(value, 1)

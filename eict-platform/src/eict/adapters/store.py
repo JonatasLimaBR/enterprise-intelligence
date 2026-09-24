@@ -65,7 +65,7 @@ def insert_missing(spark: Any, table: str, rows: list[dict], key: str) -> int:
         return 0
     view = f"incoming_{abs(hash(table)) % 10_000}"
     frame_for(spark, table, rows).createOrReplaceTempView(view)
-    spark.sql(
+    resultado = spark.sql(
         f"""
         MERGE INTO {table} AS target
         USING {view} AS source
@@ -74,7 +74,20 @@ def insert_missing(spark: Any, table: str, rows: list[dict], key: str) -> int:
         """
     )
     spark.catalog.dropTempView(view)
-    return len(rows)
+    return inserted_count(resultado, len(rows))
+
+
+def inserted_count(merge_result: Any, fallback: int) -> int:
+    """Linhas de fato inseridas, pela métrica que o MERGE devolve.
+
+    Devolver `len(rows)` dizia "20 novos" num backfill repetido que não inseriu nada.
+    Sem a métrica (ambiente que não a expõe), recua para o total enviado.
+    """
+    try:
+        linha = merge_result.collect()[0]
+        return int(linha["num_inserted_rows"])
+    except Exception:
+        return fallback
 
 
 def incident_row(incident: Incident) -> dict:
@@ -190,6 +203,44 @@ def to_run(record: dict) -> Run:
         env_hash=record.get("env_hash"),
         input_rows=record.get("input_rows"),
         job_parameters=record.get("job_parameters") or {},
+        setup_s=_optional_float(record.get("setup_s")),
+        execution_s=_optional_float(record.get("execution_s")),
+    )
+
+
+def _optional_float(value) -> float | None:
+    return None if value is None else float(value)
+
+
+def regime_row(regime) -> dict:
+    return {
+        "regime_id": regime.regime_id,
+        "job_id": regime.job_id,
+        "effective_from_at": regime.effective_from_at,
+        "effective_from_sha": regime.effective_from_sha or None,
+        "origin": regime.origin,
+        "decided_by": regime.decided_by,
+        "identity_source": regime.identity_source,
+        "reason": regime.reason,
+        "incident_id": regime.incident_id or None,
+        "created_at": regime.created_at,
+    }
+
+
+def to_regime(record: dict):
+    from eict.domain.regimes import Regime
+
+    return Regime(
+        regime_id=record["regime_id"],
+        job_id=record["job_id"],
+        origin=record.get("origin") or "",
+        decided_by=record.get("decided_by") or "",
+        reason=record.get("reason") or "",
+        identity_source=record.get("identity_source") or "",
+        effective_from_at=record.get("effective_from_at"),
+        effective_from_sha=record.get("effective_from_sha") or "",
+        incident_id=record.get("incident_id") or "",
+        created_at=record.get("created_at"),
     )
 
 

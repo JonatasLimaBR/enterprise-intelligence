@@ -24,7 +24,7 @@
 - `asset.discovered`
 - `asset.updated`
 - `relationship.observed`
-- `execution.started|completed|failed`
+- `execution.started|completed|failed|timing`
 - `metric.observed`
 - `quality.checked|violated`
 - `contract.violated`
@@ -44,6 +44,15 @@
 - evento inválido vai para quarantine com reason code;
 - breaking change cria nova major version;
 - PII/secrets proibidos salvo schema aprovado e proteção explícita.
+
+### `execution.timing`
+
+Setup e execução de um run, somados sobre as tasks (`run_id`, `job_id`, `setup_s`, `execution_s`).
+É evento próprio, e não campo de `execution.completed`, porque o id do envelope deriva de
+`source|type|subject|time` e ignora o payload: reemitir `execution.completed` com campos novos
+geraria o mesmo id e seria descartado pelo consumer idempotente. Como evento próprio, o backfill
+de runs antigos é idempotente por construção. Run com timing parcial (task sem
+`execution_duration`) não emite o evento.
 
 ## Observabilidade do pipeline de eventos
 

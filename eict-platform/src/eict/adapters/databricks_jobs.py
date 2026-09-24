@@ -61,7 +61,7 @@ def list_completed_runs(
         job_id=int(job.job_id),
         completed_only=True,
         start_time_from=since_ms,
-        expand_tasks=False,
+        expand_tasks=True,
     ):
         run = to_domain_run(base_run, job)
         if run is not None:
@@ -79,6 +79,7 @@ def to_domain_run(base_run: Any, job: MonitoredJob) -> Run | None:
     if life_cycle not in TERMINAL_LIFE_CYCLE_STATES:
         return None
     parameters = job_parameters(base_run)
+    setup_s, execution_s, _ = run_timing(base_run)
     return Run(
         run_id=str(base_run.run_id),
         job_id=job.job_id,
@@ -90,7 +91,25 @@ def to_domain_run(base_run: Any, job: MonitoredJob) -> Run | None:
         env_hash=job.env_hash,
         input_rows=None,
         job_parameters=parameters,
+        setup_s=setup_s,
+        execution_s=execution_s,
     )
+
+
+def run_timing(base_run: Any) -> tuple[float | None, float | None, int]:
+    """Setup e execução somados das tasks, em segundos, e o número de tasks.
+
+    No nível do run, `execution_duration` vem 0 em jobs de formato multi-task (todos os
+    atuais): o tempo real está nas tasks. Timing parcial não é medido — uma task sem o campo
+    faria a soma parecer mais rápida do que foi.
+    """
+    tasks = getattr(base_run, "tasks", None) or []
+    execucoes = [getattr(task, "execution_duration", None) for task in tasks]
+    setups = [getattr(task, "setup_duration", None) for task in tasks]
+    if not tasks or any(valor is None for valor in execucoes):
+        return None, None, len(tasks)
+    setup_total = sum(valor or 0 for valor in setups) / 1000
+    return setup_total, sum(execucoes) / 1000, len(tasks)
 
 
 def job_parameters(base_run: Any) -> dict[str, str]:

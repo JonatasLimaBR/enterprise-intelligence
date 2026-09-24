@@ -104,11 +104,32 @@ def detection_entry(incident: Incident, run: Run, baseline: Baseline, created: b
         incident_id=incident.incident_id,
         at=run.end_time,
         kind="detected" if created else "recurrence",
-        summary=(
-            f"Run {run.run_id} levou {run.duration_s:.0f}s contra p95 de {baseline.p95_s:.0f}s "
-            f"(baseline n={baseline.n})"
-        ),
+        summary=detection_summary(run, baseline),
     )
+
+
+def detection_summary(run: Run, baseline: Baseline) -> str:
+    """Execução e duração total lado a lado, com a incerteza do baseline.
+
+    A execução é o que decide; a duração total é o que o usuário esperou. Mostrar só uma
+    esconderia ou o sinal (o setup domina a total) ou a experiência de quem aguardou.
+    """
+    medido = run.execution_s if baseline.metric == "execution" else run.duration_s
+    fator = medido / baseline.median_s if baseline.median_s else 0.0
+    partes = [
+        f"Run {run.run_id}: {baseline.metric} {medido:.0f}s contra mediana {baseline.median_s:.0f}s "
+        f"({fator:.1f}×); limiar {baseline.threshold_s:.0f}s pelo termo {baseline.deciding_term}",
+        f"MAD {baseline.mad_s:.1f}s, n={baseline.n}",
+    ]
+    if baseline.metric == "execution":
+        partes.append(f"duração total {run.duration_s:.0f}s (setup {run.setup_s or 0:.0f}s)")
+    else:
+        partes.append("sem tempo de execução medido: comparado pela duração total")
+    if baseline.band is not None:
+        partes.append(f"faixa de volume 2^{baseline.band}")
+    elif baseline.band_fallback:
+        partes.append("faixa de volume sem amostra: baseline do regime inteiro")
+    return "; ".join(partes)
 
 
 def apply_reviews(

@@ -39,6 +39,30 @@ def run_envelope(run: Run, settings: Settings, source: str, job_name: str = "") 
     )
 
 
+def timing_envelope(run: Run, settings: Settings, source: str) -> Envelope | None:
+    """Setup e execução do run, num evento próprio.
+
+    Não é campo de `execution.completed` porque o id do envelope ignora o payload: reemitir
+    aquele evento com os campos novos geraria o mesmo id e o bronze o descartaria em silêncio.
+    Evento próprio torna o backfill idempotente — o mesmo run gera sempre o mesmo id.
+    """
+    if run.execution_s is None:
+        return None
+    return Envelope.create(
+        source=source,
+        type="execution.timing",
+        subject=f"job/{run.job_id}/run/{run.run_id}",
+        time=run.end_time,
+        tenant_id=settings.tenant_id,
+        data={
+            "run_id": run.run_id,
+            "job_id": run.job_id,
+            "setup_s": run.setup_s,
+            "execution_s": run.execution_s,
+        },
+    )
+
+
 def change_envelope(change, settings: Settings, source: str) -> Envelope:
     return Envelope.create(
         source=source,
@@ -93,6 +117,9 @@ def collect_runs(spark: Any, workspace: Any, settings: Settings, source: str) ->
     for job in databricks_jobs.list_monitored_jobs(workspace):
         for run in databricks_jobs.list_completed_runs(workspace, job, since_ms=cursor):
             envelopes.append(run_envelope(run, settings, source, job.name))
+            timing = timing_envelope(run, settings, source)
+            if timing is not None:
+                envelopes.append(timing)
             latest = max(latest, int(run.end_time.timestamp() * 1000))
     if latest:
         store.merge_rows(
@@ -101,6 +128,17 @@ def collect_runs(spark: Any, workspace: Any, settings: Settings, source: str) ->
             [store.checkpoint_row(JOBS_CONNECTOR, str(latest + 1), _now())],
             ["connector"],
         )
+    return envelopes
+
+
+def backfill_timings(workspace: Any, settings: Settings, source: str) -> list[Envelope]:
+    """Timing de toda a história dos jobs monitorados, sem tocar no cursor do `collect`."""
+    envelopes: list[Envelope] = []
+    for job in databricks_jobs.list_monitored_jobs(workspace):
+        for run in databricks_jobs.list_completed_runs(workspace, job, since_ms=None):
+            timing = timing_envelope(run, settings, source)
+            if timing is not None:
+                envelopes.append(timing)
     return envelopes
 
 

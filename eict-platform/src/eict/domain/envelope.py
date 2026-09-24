@@ -15,6 +15,7 @@ KNOWN_TYPES = frozenset(
     {
         "asset.discovered",
         "execution.completed",
+        "execution.timing",
         "metric.observed",
         "change.committed",
         "incident.created",

@@ -44,6 +44,10 @@ main() {
   [[ "$CHECK_ONLY" == true ]] && mode=check
 
   local incident hypothesis cost profile runs
+  # O incidente da demo é o primeiro detectado; hipóteses e runs são filtrados por ele. Sem o
+  # filtro, com mais de um job monitorado, o baseline dos números misturaria os dois jobs.
+  local alvo="SELECT incident_id FROM ${ops}.incidents ORDER BY detected_at LIMIT 1"
+  local job="SELECT subject FROM ${ops}.incidents ORDER BY detected_at LIMIT 1"
   incident="$(sql "
     SELECT incident_id, state, severity, first_run_id, last_run_id,
            size(affected_assets) AS affected_assets, size(ticket_refs) AS tickets
@@ -52,7 +56,7 @@ main() {
     SELECT code, rank, round(confidence, 2) AS confidence,
            size(supporting) AS supporting, size(contradicting) AS contradicting,
            size(missing) AS missing
-    FROM ${ops}.hypotheses ORDER BY rank")"
+    FROM ${ops}.hypotheses WHERE incident_id = (${alvo}) ORDER BY rank")"
   cost="$(sql "
     SELECT status, round(incremental_cost_usd, 4) AS incremental_cost_usd,
            round(list_cost_usd, 4) AS list_cost_usd
@@ -62,8 +66,9 @@ main() {
            round(top_key_share, 2) AS top_key_share, hot_key, key
     FROM ${gold}.run_features WHERE skew_ratio IS NOT NULL ORDER BY end_time DESC LIMIT 1")"
   runs="$(sql "
-    SELECT result_state, round(duration_s, 0) AS duration_s, git_sha, end_time
-    FROM ${gold}.run_features ORDER BY end_time")"
+    SELECT result_state, round(duration_s, 0) AS duration_s, round(execution_s, 0) AS execution_s,
+           git_sha, end_time
+    FROM ${gold}.run_features WHERE job_id = (${job}) ORDER BY end_time")"
 
   INCIDENT="$incident" HYPOTHESIS="$hypothesis" COST="$cost" PROFILE_JSON="$profile" \
   RUNS="$runs" CATALOG="$CATALOG" OUTPUT="$OUTPUT" MODE="$mode" PYTHONIOENCODING=utf-8 \

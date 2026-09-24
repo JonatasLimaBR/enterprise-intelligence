@@ -117,6 +117,18 @@ TABLES: dict[tuple[str, str], str] = {
         reviewed_by STRING,
         reviewed_at TIMESTAMP
     """,
+    ("ops", "baseline_regimes"): """
+        regime_id STRING NOT NULL,
+        job_id STRING,
+        effective_from_at TIMESTAMP,
+        effective_from_sha STRING,
+        origin STRING,
+        decided_by STRING,
+        identity_source STRING,
+        reason STRING,
+        incident_id STRING,
+        created_at TIMESTAMP
+    """,
     ("ops", "hypothesis_reviews"): """
         review_id STRING NOT NULL,
         hypothesis_id STRING,

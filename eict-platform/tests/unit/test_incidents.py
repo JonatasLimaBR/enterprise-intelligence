@@ -14,7 +14,7 @@ from eict.domain.incidents import (
 from eict.domain.models import Hypothesis
 from tests.conftest import BASE_TIME, JOB_ID, TENANT, make_run
 
-BASELINE = Baseline(p50_s=1230.0, p95_s=1310.0, n=7)
+BASELINE = Baseline(median_s=1230.0, mad_s=20.0, threshold_s=2460.0, deciding_term="ratio", n=7, metric="total")
 
 
 def test_new_incident_created_when_none_is_active():

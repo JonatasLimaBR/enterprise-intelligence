@@ -24,6 +24,7 @@ class Settings:
     impact_max_depth: int = 3
     metrics_dir: str = ""
     workload_repo: str = ""
+    baselines_dir: str = ""
 
     @property
     def excluded_assets(self) -> tuple[str, ...]:
@@ -57,6 +58,7 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
     parser.add_argument("--impact-max-depth", type=int, default=3)
     parser.add_argument("--metrics-dir", default="")
     parser.add_argument("--workload-repo", default="")
+    parser.add_argument("--baselines-dir", default="")
     known, _ = parser.parse_known_args(argv)
     return Settings(
         catalog=known.catalog,
@@ -73,4 +75,5 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
         impact_max_depth=known.impact_max_depth,
         metrics_dir=known.metrics_dir,
         workload_repo=known.workload_repo,
+        baselines_dir=known.baselines_dir,
     )

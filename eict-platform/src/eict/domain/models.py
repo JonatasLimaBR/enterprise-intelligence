@@ -37,6 +37,8 @@ class Run:
     env_hash: str | None = None
     input_rows: int | None = None
     job_parameters: dict[str, str] = field(default_factory=dict)
+    setup_s: float | None = None
+    execution_s: float | None = None
 
     @property
     def succeeded(self) -> bool:

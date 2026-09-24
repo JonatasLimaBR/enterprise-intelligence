@@ -33,6 +33,8 @@ resources:
           default: ${workspace.file_path}/metrics
         - name: workload_repo
           default: ${var.workload_repo}
+        - name: baselines_dir
+          default: ${workspace.file_path}/baselines
       environments:
         - environment_key: default
           spec:
@@ -60,4 +62,5 @@ resources:
               - "--contracts-dir={{job.parameters.contracts_dir}}"
               - "--metrics-dir={{job.parameters.metrics_dir}}"
               - "--workload-repo={{job.parameters.workload_repo}}"
+              - "--baselines-dir={{job.parameters.baselines_dir}}"
               - "--pipeline-id=${resources.pipelines.medallion.id}"

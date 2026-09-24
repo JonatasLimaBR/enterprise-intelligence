@@ -11,6 +11,9 @@ RUN_SCHEMA = """
     duration_s DOUBLE, result_state STRING, git_sha STRING, env_hash STRING,
     job_parameters MAP<STRING, STRING>
 """
+TIMING_SCHEMA = """
+    run_id STRING, job_id STRING, setup_s DOUBLE, execution_s DOUBLE
+"""
 CHANGE_SCHEMA = """
     sha STRING, repo STRING, author STRING, message STRING,
     files ARRAY<STRING>, patch STRING
@@ -44,6 +47,25 @@ def runs():
         F.col("payload.job_parameters").alias("job_parameters"),
         F.col("time").alias("observed_at"),
         F.col("source").alias("source_ref"),
+    )
+
+
+@dlt.table(name="run_timings", comment="Setup and execution time per run, summed over tasks")
+@dlt.expect_or_drop("has_identity", "run_id IS NOT NULL")
+@dlt.expect_or_drop("non_negative_execution", "execution_s >= 0")
+def run_timings():
+    # Evento próprio (execution.timing): o id do envelope ignora o payload, então o tempo
+    # não podia viajar como campo novo de execution.completed sem ser descartado no bronze.
+    parsed = (
+        dlt.read_stream("observations")
+        .filter(F.col("type") == "execution.timing")
+        .withColumn("payload", F.from_json("data", TIMING_SCHEMA))
+    )
+    return parsed.select(
+        F.col("payload.run_id").alias("run_id"),
+        F.col("payload.setup_s").alias("setup_s"),
+        F.col("payload.execution_s").alias("execution_s"),
+        F.col("time").alias("observed_at"),
     )
 
 
@@ -85,8 +107,10 @@ def run_profiles():
 def run_features():
     runs_df = dlt.read("runs").drop("source_ref")
     profiles_df = dlt.read("run_profiles").drop("git_sha")
+    timings_df = dlt.read("run_timings").drop("observed_at").dropDuplicates(["run_id"])
     return (
         runs_df.join(profiles_df, on="run_id", how="left")
+        .join(timings_df, on="run_id", how="left")
         .withColumn("input_rows", F.col("left_rows"))
         .select(
             "run_id",
@@ -95,6 +119,8 @@ def run_features():
             "start_time",
             "end_time",
             "duration_s",
+            "setup_s",
+            "execution_s",
             "result_state",
             "git_sha",
             "env_hash",

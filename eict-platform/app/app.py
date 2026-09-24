@@ -6,6 +6,7 @@ import uuid
 from datetime import UTC, datetime
 
 import streamlit as st
+from acceptance import IDENTITY_HEADER, refusal, statements
 from databricks import sql
 from databricks.sdk.core import Config
 
@@ -172,7 +173,9 @@ def render_diff(healthy: dict | None, current: dict) -> None:
     dimensions = [
         ("commit", "git_sha"),
         ("ambiente", "env_hash"),
-        ("duração (s)", "duration_s"),
+        ("execução (s) — decide a regressão", "execution_s"),
+        ("setup do ambiente (s)", "setup_s"),
+        ("duração total (s)", "duration_s"),
         ("linhas de entrada", "input_rows"),
         ("maior chave (linhas)", "max_key_rows"),
         ("mediana (linhas)", "median_key_rows"),
@@ -195,6 +198,37 @@ def render_diff(healthy: dict | None, current: dict) -> None:
     rows.append({"dimensão": "spill", "run saudável": NOT_AVAILABLE, "run atual": NOT_AVAILABLE, "mudou": ""})
     rows.append({"dimensão": "GC", "run saudável": NOT_AVAILABLE, "run atual": NOT_AVAILABLE, "mudou": ""})
     st.dataframe(rows, use_container_width=True, hide_index=True)
+
+
+def accept_regime(incident: dict, email: str, reason: str) -> None:
+    """Aceita o nível atual como novo normal: regime, incidente fechado e timeline."""
+    first = query(
+        f"SELECT start_time FROM {table('gold', 'run_features')} WHERE run_id = :run_id",
+        {"run_id": incident["first_run_id"]},
+    )
+    if not first:
+        raise ValueError("primeiro run do incidente não encontrado em run_features")
+    now = datetime.now(UTC)
+    for statement, parameters in statements(incident, first[0]["start_time"], email, reason, now, table):
+        execute(statement, parameters)
+    load_incidents.clear()
+
+
+def render_acceptance(incident: dict) -> None:
+    with st.expander("Aceitar como novo normal"):
+        st.caption(
+            "Use quando a mudança é intencional. O baseline recomeça no primeiro run deste "
+            "incidente e o incidente é fechado como decisão, registrando quem aceitou e por quê."
+        )
+        email = st.context.headers.get(IDENTITY_HEADER)
+        reason = st.text_area("Justificativa", key=f"regime-{incident['incident_id']}")
+        recusa = refusal(email, reason)
+        st.caption(f"Identidade: {email}" if email else "Identidade não encaminhada.")
+        if st.button("Aceitar regime", key=f"accept-{incident['incident_id']}", disabled=recusa is not None):
+            accept_regime(incident, email, reason)
+            st.rerun()
+        if recusa and (reason or not email):
+            st.caption(recusa)
 
 
 def _changed(healthy_value: str, current_value: str) -> str:
@@ -281,6 +315,8 @@ if incident["type"] == "runtime_regression":
         {"job_id": incident["subject"], "before": incident["detected_at"]},
     )
     render_diff(healthy_rows[0] if healthy_rows else None, current)
+    if incident["state"] in ("detected", "triaged", "investigating", "mitigating", "monitoring"):
+        render_acceptance(incident)
 else:
     st.subheader("Regras violadas")
     render_rule_results(load_rule_results(incident["subject"]))

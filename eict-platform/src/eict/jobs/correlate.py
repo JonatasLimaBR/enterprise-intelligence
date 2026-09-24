@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from eict.adapters import capabilities as capability_probe
@@ -22,6 +23,7 @@ from eict.domain.models import (
     RunFeatures,
     TimelineEntry,
 )
+from eict.domain.regimes import Regime, regime_start
 from eict.domain.resolution import resolvable
 
 logger = logging.getLogger(__name__)
@@ -98,6 +100,29 @@ def load_closed_until(spark: Any, settings: Settings) -> dict[str, datetime]:
         """,
     )
     return {record["subject"]: record["fechado_em"] for record in records}
+
+
+def load_regimes(spark: Any, settings: Settings) -> list[Regime]:
+    """Aceites do console e declarações do repositório, já gravados, e as declarações do disco.
+
+    As declarações válidas são gravadas a cada ciclo (id estável): assim o console mostra o
+    histórico de marcos inteiro, venha de onde vier.
+    """
+    from eict.adapters import regime_loader
+
+    diretorio = settings.baselines_dir or str(Path(__file__).resolve().parents[3] / "baselines")
+    declaradas = regime_loader.load_directory(diretorio)
+    for erro in declaradas.errors:
+        logger.warning("declaração de regime recusada: %s", erro)
+    if declaradas.regimes:
+        store.merge_rows(
+            spark,
+            settings.table("ops", "baseline_regimes"),
+            [store.regime_row(regime) for regime in declaradas.regimes],
+            ["regime_id"],
+        )
+    records = store.query(spark, f"SELECT * FROM {settings.table('ops', 'baseline_regimes')}")
+    return [store.to_regime(record) for record in records]
 
 
 def load_reviews(spark: Any, settings: Settings) -> list[Review]:
@@ -223,6 +248,7 @@ def correlate(
     now: datetime,
     graph: tuple = (),
     closed_until: dict[str, datetime] | None = None,
+    regimes: list[Regime] | tuple[Regime, ...] = (),
 ) -> list[Incident]:
     """Reavalia o histórico inteiro a cada ciclo — por isso precisa de `closed_until`.
 
@@ -233,6 +259,10 @@ def correlate(
     """
     closed_until = closed_until or {}
     history = [item.run for item in features]
+    inicios = {
+        job_id: regime_start(job_id, list(regimes), history)
+        for job_id in {run.job_id for run in history}
+    }
     by_run_id = {item.run_id: item for item in features}
     billing_available = capability_probe.status_of(capabilities, capability_probe.BILLING_USAGE)
     touched: list[Incident] = []
@@ -240,7 +270,9 @@ def correlate(
     latest: dict[str, tuple[RunFeatures, bool]] = {}
 
     for current in features:
-        verdict = baseline_rules.evaluate(current.run, history, incident_run_ids)
+        verdict = baseline_rules.evaluate(
+            current.run, history, incident_run_ids, inicios.get(current.run.job_id)
+        )
         fechado_em = closed_until.get(current.run.job_id)
         if fechado_em is not None and current.run.end_time <= fechado_em:
             if verdict.is_regression:
@@ -401,6 +433,7 @@ def _queue_ticket(spark, settings, incident, current, hypotheses, now) -> None:
             "correlation_key": incident.correlation_key,
             "run_id": current.run_id,
             "duration_s": current.run.duration_s,
+            "execution_s": current.run.execution_s,
             "top_hypothesis": top.statement if top else None,
             "confidence": top.confidence if top else None,
             "affected_assets": list(incident.affected_assets),
@@ -532,6 +565,7 @@ def main(argv: list[str] | None = None) -> None:
         now,
         graph,
         load_closed_until(spark, settings),
+        load_regimes(spark, settings),
     )
     quality_touched = correlate_quality_incidents(
         spark, settings, load_active_incidents(spark, settings), changes, now, graph

@@ -139,3 +139,106 @@ def test_runtime_state_usa_o_run_mais_recente_de_cada_job():
 
     assert avaliados == {(JOB_ID, RUNTIME_REGRESSION)}
     assert violando == frozenset()
+
+
+# --- baseline robusto: o roteiro da verificação real, em unidade ------------------------------
+
+from dataclasses import replace  # noqa: E402
+
+from eict.domain.regimes import parse_declaration  # noqa: E402
+
+SHA_NOVO = "d" * 40
+
+
+def _medido(index: int, execucao: float, setup: float = 130.0, sha: str | None = None, **extra):
+    run = make_run(index, duration_s=execucao + setup, **({"git_sha": sha} if sha else {}), **extra)
+    return replace(run, execution_s=execucao, setup_s=setup)
+
+
+def _contaminada():
+    """A história real do job pequeno: leves e `heavy` misturados, sem regime."""
+    return [_medido(i, valor) for i, valor in enumerate([73, 113, 29, 95, 148, 27])]
+
+
+def _declaracao():
+    return parse_declaration(
+        {
+            "job_id": JOB_ID,
+            "effective_from": {"git_sha": SHA_NOVO},
+            "owner": "dados@exemplo.com",
+            "reason": "baseline contaminado por runs heavy de teste",
+        }
+    )
+
+
+def _leves(inicio: int, n: int = 5):
+    return [_medido(inicio + i, 28.0 + (i % 3), sha=SHA_NOVO) for i in range(n)]
+
+
+def _ciclo_regime(features, incidents=(), regimes=()):
+    return correlate_job.correlate(
+        None, Settings(), features, [], list(incidents), [], [], NOW, regimes=list(regimes)
+    )
+
+
+def test_mediana_resiste_a_contaminacao_minoritaria_mesmo_sem_regime(fake_store):
+    """4 `heavy` entre 11 runs: mediana 29, limiar 59 — o p95 antigo ficava perto de 150."""
+    historia = _contaminada() + _leves(6) + [_medido(11, 95.0, sha=SHA_NOVO)]
+
+    touched = _ciclo_regime(_features(*historia))
+
+    assert [item.first_run_id for item in touched] == ["run-11"]
+
+
+def test_contaminacao_majoritaria_so_o_regime_resolve(fake_store):
+    """Com os pesados em maioria, a mediana vira pesada; só o corte do regime devolve o sinal."""
+    pesados = [_medido(i, valor) for i, valor in enumerate([113, 95, 148, 120, 101, 130, 99, 140])]
+    historia = pesados + _leves(8) + [_medido(13, 95.0, sha=SHA_NOVO)]
+
+    sem = _ciclo_regime(_features(*historia))
+    com = _ciclo_regime(_features(*historia), regimes=[_declaracao()])
+
+    assert sem == []
+    assert [item.first_run_id for item in com] == ["run-13"]
+
+
+def test_sc1_com_regime_declarado_o_pesado_abre_incidente(fake_store):
+    historia = _contaminada() + _leves(6) + [_medido(11, 95.0, sha=SHA_NOVO)]
+
+    touched = _ciclo_regime(_features(*historia), regimes=[_declaracao()])
+
+    assert [item.first_run_id for item in touched] == ["run-11"]
+    timeline = fake_store.rows[Settings().table("ops", "incident_timeline")]
+    assert "execution 95s" in timeline[-1]["summary"]
+    assert "duração total 225s" in timeline[-1]["summary"]
+
+
+def test_sc2_um_leve_depois_fecha_o_incidente(fake_store):
+    pesado = _medido(11, 95.0, sha=SHA_NOVO)
+    historia = _contaminada() + _leves(6) + [pesado]
+    abertos = _ciclo_regime(_features(*historia), regimes=[_declaracao()])
+
+    touched = _ciclo_regime(
+        _features(*historia, _medido(12, 29.0, sha=SHA_NOVO)), abertos, regimes=[_declaracao()]
+    )
+
+    assert touched[-1].state == "recovered"
+    assert touched[-1].incident_id == abertos[0].incident_id
+
+
+def test_sc4_regressao_central_segue_detectada_pela_execucao(fake_store):
+    saudaveis = [_medido(i, valor) for i, valor in enumerate([25, 27, 26, 23, 26, 27, 42, 34, 31, 26, 28, 26])]
+    lento = _medido(12, 1435.0, setup=134.0)
+
+    touched = _ciclo_regime(_features(*saudaveis, lento))
+
+    assert [item.first_run_id for item in touched] == ["run-12"]
+    resumo = fake_store.rows[Settings().table("ops", "incident_timeline")][-1]["summary"]
+    assert "(54.2×)" in resumo
+    assert "duração total 1569s" in resumo
+
+
+def test_sc6_setup_lento_nao_abre_incidente(fake_store):
+    historia = [_medido(i, 28.0) for i in range(6)] + [_medido(6, 27.0, setup=285.0)]
+
+    assert _ciclo_regime(_features(*historia)) == []
