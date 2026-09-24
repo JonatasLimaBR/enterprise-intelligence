@@ -269,7 +269,7 @@ explicitamente ao job como `contracts_dir`. Deploy da demo:
   insere). O ship verificou um ciclo só — por isso passou. Corrigido em `97c07b0`; as 179 linhas
   com id antigo seguem na tabela como resíduo inofensivo.
 
-**Baseline sem janela (achado, não corrigido):** `compute_baseline` usa **todos** os runs de
+**Baseline sem janela (achado — corrigido por EICT_ROBUST_BASELINE):** `compute_baseline` usa **todos** os runs de
 sucesso da história do job. Run lento que não virou incidente fica no baseline para sempre: o job
 pequeno tem três runs `heavy` (379s, 284s, 221s), o limiar sobe para ~500s e o run pesado (~390s)
 não abre incidente. Por isso o AT-15 não é reproduzível em execução real neste workspace, nem com
@@ -279,6 +279,36 @@ não abre incidente. Por isso o AT-15 não é reproduzível em execução real n
 `resolved`, que não existe no código (gravado à mão em 2026-09-22) — o `reset_demo.sh` os elimina.
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_SEMANTIC_REGISTRY/SHIPPED_2026-09-23.md`.
+
+### Baseline robusto (feature EICT_ROBUST_BASELINE — ✅ Shipped em 2026-09-24)
+
+| Item | Estado |
+|------|--------|
+| Métrica | ✅ **execução** (Σ `tasks[].execution_duration`), não a duração total — o setup serverless oscila 125–285s |
+| Estatística | ✅ limiar = max(2×mediana, mediana+5·MAD, mediana+30s); janela 20, mínimo 5; termo decisivo na evidência |
+| Regime | ✅ só muda por decisão humana: aceite no console (`X-Forwarded-Email`) ou `eict-platform/baselines/*.yaml` |
+| Abrir → fechar em produção | ✅ pesado abriu `inc-f6044ba36ab9`, leve seguinte fechou como `recovered` — o AT-15 anterior, enfim real |
+| Backfill | ✅ `eict_backfill_timing` idempotente: 3 execuções, a 3ª com 0 inseridos |
+| Testes | ✅ **388** (56 novos) · ruff limpo |
+
+**A prova:** run pesado com execução **93s** contra mediana **28s** (3,3×) e duração total 339s —
+dos quais **245s de setup**. Pela total, cairia no meio dos runs leves (163–319s). A regressão
+central é 5,7× na total e **54×** na execução.
+
+**Tempo de execução é evento próprio (`execution.timing`).** O id do envelope é
+`uuid5(source|type|subject|time)` e ignora o payload: reemitir `execution.completed` com campos
+novos seria descartado em silêncio pelo bronze. Vale para qualquer backfill futuro — se o id não
+depende do conteúdo, corrigir é criar outro tipo de evento.
+
+**Achados:** `insert_missing` devolvia linhas enviadas, não inseridas (corrigido: lê
+`num_inserted_rows`). `collect_numbers.sh` não filtrava por job/incidente (corrigido). A revisão de
+hipóteses ainda grava revisor por e-mail digitado — fica para RBAC/audit.
+
+**Pendências:** aceite no App não exercitado em produção (SC7); roteiro não cita o fator na
+execução; `RATIO=2` não dispara +83% num job longo. O job pequeno tem regime declarado desde
+2026-09-24 11:16 UTC; `reset_demo.sh` restaura o estado de apresentação.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_ROBUST_BASELINE/SHIPPED_2026-09-24.md`.
 
 ---
 
