@@ -336,6 +336,24 @@ versão contava desde o prazo de ontem e aceitava entrega atrasada de ontem como
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_SLA_RISK/SHIPPED_2026-09-24.md`.
 
+### Auditoria e RBAC (feature EICT_AUDIT_RBAC — ✅ Shipped em 2026-09-24, não publicado)
+
+| Item | Estado |
+|------|--------|
+| Papéis | ✅ `eict-platform/app/roles.yaml` (e-mail → papéis); fora do arquivo, só leitura; YAML inválido ⇒ todos só leitura |
+| Matriz | `review_hypothesis`: operador, engenheiro_dados · `accept_regime`: engenheiro_dados · `view_audit`: data_steward, auditor |
+| Identidade | ✅ sempre `X-Forwarded-Email`; o campo "Seu e-mail" da revisão foi removido |
+| Trilha | ✅ `ops.audit_log` `delta.appendOnly` + cadeia de hash; ação permitida **e negada**, gravada antes da escrita |
+| Verificador | ✅ `integra` · `bifurcada` (escrita concorrente) · `adulterada` (hash não confere ou pai apagado) |
+| Testes | ✅ **453** (24 novos) · ruff limpo |
+| Publicação | ⛔ **não publicado**: a tabela nasce no bootstrap do ciclo, e o workspace recusa runs. Ordem: ciclo → deploy do App |
+
+Papéis, autorização e auditoria vivem em `app/` (puros e testados), porque o App é publicado só
+com essa pasta. O hash trata instante sem fuso como UTC — sem isso, toda a trilha pareceria
+adulterada num servidor fora de UTC.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_AUDIT_RBAC/SHIPPED_2026-09-24.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
