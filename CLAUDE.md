@@ -387,6 +387,16 @@ Fecha os três Must de "anomaly" da Fase 1: runtime, freshness/SLA e custo.
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_COST_BASELINE/SHIPPED_2026-09-24.md`.
 
+### Resumo executivo (feature EICT_EXECUTIVE_SUMMARY — ✅ Shipped em 2026-09-24, não publicado)
+
+Read model `ops.executive_summary` (SPEC-017 DASH-01), recalculado ao fim do `correlate`, e a
+primeira visão do console. Nove métricas, cada uma com janela, fonte, `n`, fórmula e confiança.
+MTTR só sobre `recovered`; fechamento por decisão à parte; MTTA **não medido** (sem
+reconhecimento de incidente); custo soma só o confirmado pelo billing e mostra os pendentes.
+Testes: **505** (14 novos).
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_EXECUTIVE_SUMMARY/SHIPPED_2026-09-24.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
