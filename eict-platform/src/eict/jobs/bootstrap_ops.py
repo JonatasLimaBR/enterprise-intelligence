@@ -117,6 +117,16 @@ TABLES: dict[tuple[str, str], str] = {
         reviewed_by STRING,
         reviewed_at TIMESTAMP
     """,
+    ("ops", "connector_health"): """
+        connector STRING NOT NULL,
+        status STRING,
+        retrying INT,
+        quarantined INT,
+        last_success_at TIMESTAMP,
+        last_error STRING,
+        detail STRING,
+        evaluated_at TIMESTAMP
+    """,
     ("ops", "audit_log"): """
         seq BIGINT,
         audit_id STRING NOT NULL,
@@ -270,6 +280,11 @@ MIGRATIONS = (
     ("ops", "incidents", "ADD COLUMN impact_policy_version STRING"),
     ("ops", "incidents", "ADD COLUMN escalated_from STRING"),
     ("ops", "incidents", "ADD COLUMN escalation_reason STRING"),
+    ("ops", "dlq", "ADD COLUMN error_class STRING"),
+    ("ops", "dlq", "ADD COLUMN attempts INT"),
+    ("ops", "dlq", "ADD COLUMN first_at TIMESTAMP"),
+    ("ops", "dlq", "ADD COLUMN next_attempt_at TIMESTAMP"),
+    ("ops", "dlq", "ADD COLUMN status STRING"),
 )
 BACKFILLS = (
     ("ops", "incidents", "UPDATE {table} SET subject = job_id WHERE subject IS NULL"),

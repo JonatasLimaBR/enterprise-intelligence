@@ -269,6 +269,22 @@ def render_audit() -> None:
     )
 
 
+SAUDE_ICONE = {"saudavel": "🟢", "degradado": "🟡", "falhando": "🔴", "sem_dados": "⚪"}
+
+
+def render_connector_health() -> None:
+    """Falha silenciosa só deixa de ser silenciosa se alguém a vê."""
+    try:
+        linhas = query(f"SELECT * FROM {table('ops', 'connector_health')} ORDER BY connector")
+    except Exception:
+        st.sidebar.caption("Saúde dos conectores: aguardando o primeiro ciclo.")
+        return
+    st.sidebar.markdown("**Saúde dos conectores**")
+    for linha in linhas:
+        icone = SAUDE_ICONE.get(linha["status"], "⚪")
+        st.sidebar.caption(f"{icone} {linha['connector']} — {linha['status']}: {linha['detail']}")
+
+
 def accept_regime(incident: dict, email: str, reason: str) -> None:
     """Aceita o nível atual como novo normal: regime, incidente fechado e timeline."""
     first = query(
@@ -324,6 +340,7 @@ st.sidebar.caption(
 )
 if directory().error:
     st.sidebar.warning(directory().error)
+render_connector_health()
 visoes = ["Incidentes"] + (["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else [])
 if st.sidebar.radio("Visão", visoes) == "Auditoria":
     render_audit()

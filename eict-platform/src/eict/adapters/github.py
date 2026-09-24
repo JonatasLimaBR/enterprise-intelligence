@@ -14,7 +14,11 @@ RELEVANT_PATCH_TOKENS = ("join", "Window", "partitionBy", "skew")
 
 
 class GitHubError(RuntimeError):
-    pass
+    """Falha ao falar com o GitHub. `status` é o HTTP; `None` quando não houve resposta."""
+
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
 
 
 @dataclass(frozen=True)
@@ -38,7 +42,7 @@ class GitHubClient:
             timeout=TIMEOUT_S,
         )
         if response.status_code != 200:
-            raise GitHubError(f"github {response.status_code} for commit {sha}")
+            raise GitHubError(f"github {response.status_code} for commit {sha}", response.status_code)
         return to_change(self.repo, response.json())
 
     def fetch_file(self, path: str, ref: str = "") -> str:
@@ -57,7 +61,7 @@ class GitHubClient:
         if response.status_code == 404:
             return ""
         if response.status_code != 200:
-            raise GitHubError(f"github {response.status_code} para {path}")
+            raise GitHubError(f"github {response.status_code} para {path}", response.status_code)
         return response.text
 
 

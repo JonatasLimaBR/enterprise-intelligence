@@ -8,6 +8,7 @@ from eict.adapters import capabilities as capability_probe
 from eict.adapters import databricks_jobs, store
 from eict.adapters.github import GitHubClient, GitHubError
 from eict.config import Settings, parse_settings
+from eict.domain import connectors
 from eict.domain.envelope import Envelope
 from eict.domain.models import Run
 
@@ -162,31 +163,125 @@ def backfill_timings(workspace: Any, settings: Settings, source: str) -> list[En
     return envelopes
 
 
+def load_dlq(spark: Any, settings: Settings, source: str) -> dict:
+    records = store.query(
+        spark, f"SELECT * FROM {settings.table('ops', 'dlq')} WHERE source = '{source}'"
+    )
+    return {entry.dlq_id: entry for entry in store.to_dlq_entries(records)}
+
+
+def fetch_changes(
+    github: GitHubClient, pending: list[str], dlq: dict, settings: Settings, source: str, now: datetime
+) -> tuple[list[Envelope], list, str | None, int]:
+    """Busca os commits devidos. Devolve envelopes, entradas da DLQ a gravar, último erro e sucessos.
+
+    Quarentena não se tenta; retentativa só depois do `next_attempt_at`. Um commit que não
+    existe (422) vai para a quarentena na primeira falha em vez de ser buscado a cada ciclo.
+    """
+    envelopes: list[Envelope] = []
+    alteradas = []
+    ultimo_erro: str | None = None
+    sucessos = 0
+    for sha in pending:
+        dlq_id = f"github-{sha}"
+        existente = dlq.get(dlq_id)
+        if not connectors.should_try(existente, now):
+            continue
+        try:
+            envelopes.append(change_envelope(github.commit(sha), settings, source))
+            sucessos += 1
+            if existente is not None and existente.is_open:
+                alteradas.append(connectors.record_success(existente, now))
+        except GitHubError as exc:
+            ultimo_erro = str(exc)[:500]
+            alteradas.append(
+                connectors.record_failure(
+                    existente, dlq_id, GITHUB_CONNECTOR, sha, ultimo_erro, exc.status, now
+                )
+            )
+    return envelopes, alteradas, ultimo_erro, sucessos
+
+
 def collect_changes(
     spark: Any, settings: Settings, github: GitHubClient | None, shas: set[str], source: str
 ) -> list[Envelope]:
     if github is None or not shas:
         return []
-    already = known_shas(spark, settings)
-    envelopes: list[Envelope] = []
-    for sha in sorted(shas - already):
-        try:
-            envelopes.append(change_envelope(github.commit(sha), settings, source))
-        except GitHubError as exc:
-            store.append_rows(
-                spark,
-                settings.table("ops", "dlq"),
-                [
-                    {
-                        "dlq_id": f"github-{sha}",
-                        "source": GITHUB_CONNECTOR,
-                        "payload": sha,
-                        "error": str(exc)[:500],
-                        "at": _now(),
-                    }
-                ],
-            )
+    agora = _now()
+    pendentes = sorted(shas - known_shas(spark, settings))
+    envelopes, alteradas, erro, sucessos = fetch_changes(
+        github, pendentes, load_dlq(spark, settings, GITHUB_CONNECTOR), settings, source, agora
+    )
+    if alteradas:
+        store.merge_rows(
+            spark, settings.table("ops", "dlq"), [store.dlq_row(item) for item in alteradas], ["dlq_id"]
+        )
+    if sucessos or erro:
+        record_checkpoint(spark, settings, GITHUB_CONNECTOR, agora if sucessos else None, erro)
     return envelopes
+
+
+def record_health(spark: Any, settings: Settings, now: datetime) -> list:
+    """Saúde de cada conector, calculada aqui porque o console não importa o domínio."""
+    checkpoints = {
+        record["connector"]: record
+        for record in store.query(spark, f"SELECT * FROM {settings.table('ops', 'connector_checkpoints')}")
+    }
+    saude = []
+    for connector in (JOBS_CONNECTOR, GITHUB_CONNECTOR):
+        checkpoint = checkpoints.get(connector, {})
+        saude.append(
+            connectors.health(
+                connector,
+                checkpoint.get("last_success_at"),
+                checkpoint.get("last_error"),
+                list(load_dlq(spark, settings, connector).values()),
+                now,
+            )
+        )
+    store.merge_rows(
+        spark,
+        settings.table("ops", "connector_health"),
+        [
+            {
+                "connector": item.connector,
+                "status": item.status,
+                "retrying": item.retrying,
+                "quarantined": item.quarantined,
+                "last_success_at": item.last_success_at,
+                "last_error": item.last_error or None,
+                "detail": item.detail,
+                "evaluated_at": now,
+            }
+            for item in saude
+        ],
+        ["connector"],
+    )
+    return saude
+
+
+def record_checkpoint(
+    spark: Any, settings: Settings, connector: str, success_at: datetime | None, error: str | None
+) -> None:
+    """Preserva o último sucesso: um ciclo só com falhas não pode apagá-lo."""
+    anterior = store.query(
+        spark,
+        f"SELECT * FROM {settings.table('ops', 'connector_checkpoints')} WHERE connector = '{connector}'",
+    )
+    ultimo = anterior[0] if anterior else {}
+    store.merge_rows(
+        spark,
+        settings.table("ops", "connector_checkpoints"),
+        [
+            {
+                "connector": connector,
+                "cursor": ultimo.get("cursor"),
+                "last_success_at": success_at or ultimo.get("last_success_at"),
+                "last_error": error if success_at is None else None,
+            }
+        ],
+        ["connector"],
+    )
 
 
 def persist(spark: Any, settings: Settings, envelopes: list[Envelope]) -> int:
@@ -218,6 +313,8 @@ def main(argv: list[str] | None = None) -> None:
     change_envelopes = collect_changes(spark, settings, github, shas, source)
 
     persisted = persist(spark, settings, run_envelopes + change_envelopes)
+    for item in record_health(spark, settings, _now()):
+        logger.info("conector %s: %s (%s)", item.connector, item.status, item.detail)
 
     store.merge_rows(
         spark,

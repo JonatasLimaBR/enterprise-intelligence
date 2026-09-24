@@ -245,6 +245,75 @@ def sla_prediction_row(assessment, predicted_at, policy_version: str) -> dict:
     }
 
 
+def dlq_row(entry) -> dict:
+    return {
+        "dlq_id": entry.dlq_id,
+        "source": entry.source,
+        "payload": entry.payload,
+        "error": entry.error,
+        "at": entry.at,
+        "error_class": entry.error_class,
+        "attempts": entry.attempts,
+        "first_at": entry.first_at,
+        "next_attempt_at": entry.next_attempt_at,
+        "status": entry.status,
+    }
+
+
+def to_dlq_entries(records: list[dict]) -> list:
+    """Uma entrada por `dlq_id`, consolidando as linhas legadas.
+
+    Antes da DLQ ter estado, cada falha era anexada: o commit `090e793` tem 7 linhas. Aqui elas
+    viram uma, com as tentativas contadas, a primeira e a última falha — sem apagar nada.
+    """
+    from eict.domain.connectors import (
+        MAX_ATTEMPTS,
+        PERMANENTE,
+        QUARANTINED,
+        RETRYING,
+        DlqEntry,
+        classify,
+    )
+
+    grupos: dict[str, list[dict]] = {}
+    for record in records:
+        grupos.setdefault(record["dlq_id"], []).append(record)
+    saida = []
+    for dlq_id, linhas in grupos.items():
+        ultima = max(linhas, key=lambda linha: linha["at"])
+        if ultima.get("status"):
+            tentativas = int(ultima.get("attempts") or len(linhas))
+            status, classe = ultima["status"], ultima.get("error_class") or ""
+        else:
+            tentativas = len(linhas)
+            codigo = _status_from_error(ultima.get("error") or "")
+            classe = classify(codigo)
+            status = QUARANTINED if classe == PERMANENTE or tentativas >= MAX_ATTEMPTS else RETRYING
+        saida.append(
+            DlqEntry(
+                dlq_id=dlq_id,
+                source=ultima.get("source") or "",
+                payload=ultima.get("payload") or "",
+                error=ultima.get("error") or "",
+                error_class=classe,
+                attempts=tentativas,
+                first_at=min((linha.get("first_at") or linha["at"]) for linha in linhas),
+                at=ultima["at"],
+                next_attempt_at=ultima.get("next_attempt_at"),
+                status=status,
+            )
+        )
+    return saida
+
+
+def _status_from_error(error: str) -> int | None:
+    """As linhas legadas só guardaram o texto: `github 422 for commit …`."""
+    import re
+
+    match = re.search(r"\b([1-5]\d\d)\b", error)
+    return int(match.group(1)) if match else None
+
+
 def regime_row(regime) -> dict:
     return {
         "regime_id": regime.regime_id,
