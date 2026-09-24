@@ -127,7 +127,7 @@ def test_contratos_do_repositorio_sao_validos():
     resultado = load_directory(REPO_CONTRACTS)
 
     assert resultado.errors == ()
-    assert len(resultado.active) == 3
+    assert len(resultado.active) == 4  # + sales_daily_small (demonstração do risco de SLA)
     assert all(rule.owner for contrato in resultado.contracts for rule in contrato.quality)
 
 

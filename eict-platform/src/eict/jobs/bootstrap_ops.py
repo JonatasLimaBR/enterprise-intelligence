@@ -117,6 +117,29 @@ TABLES: dict[tuple[str, str], str] = {
         reviewed_by STRING,
         reviewed_at TIMESTAMP
     """,
+    ("ops", "monitored_jobs"): """
+        job_id STRING NOT NULL,
+        name STRING,
+        normalized_name STRING,
+        active_run_id STRING,
+        active_since TIMESTAMP,
+        observed_at TIMESTAMP
+    """,
+    ("ops", "sla_predictions"): """
+        prediction_id STRING NOT NULL,
+        asset STRING,
+        slo_kind STRING,
+        deadline TIMESTAMP,
+        predicted_at TIMESTAMP,
+        remaining_s DOUBLE,
+        slack_s DOUBLE,
+        klass STRING,
+        producer_job_id STRING,
+        producer_state STRING,
+        policy_version STRING,
+        outcome STRING,
+        outcome_at TIMESTAMP
+    """,
     ("ops", "baseline_regimes"): """
         regime_id STRING NOT NULL,
         job_id STRING,

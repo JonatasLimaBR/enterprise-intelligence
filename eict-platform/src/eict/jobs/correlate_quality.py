@@ -6,8 +6,9 @@ ativo, as hipóteses são de pipeline e origem, e a evidência carrega a consult
 
 from __future__ import annotations
 
+import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -16,16 +17,18 @@ from eict.config import Settings
 from eict.domain import impact as impact_rules
 from eict.domain import quality_hypotheses
 from eict.domain import semantic_incidents as semantic
+from eict.domain import sla as sla_rules
 from eict.domain.contracts import Contract
 from eict.domain.extraction import ObservedMetric
 from eict.domain.incidents import (
     CONTRACT_VIOLATION,
     QUALITY_ENGINE_FAILURE,
     SEMANTIC_CONFLICT,
+    SLA_RISK,
     open_or_update_for_asset,
 )
 from eict.domain.metrics import Divergence
-from eict.domain.models import Change, Incident, RuleResult, TimelineEntry
+from eict.domain.models import Change, Evidence, Incident, RuleResult, TimelineEntry
 from eict.domain.quality_incidents import (
     build_error_evidence,
     build_evidence,
@@ -38,6 +41,7 @@ from eict.domain.quality_incidents import (
     violation_summary,
 )
 from eict.domain.resolution import resolvable
+from eict.domain.severity import rank_of
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +59,7 @@ class QualityInput:
     max_depth: int = impact_rules.DEFAULT_MAX_DEPTH
     excluded: tuple[str, ...] = ()
     semantics: SemanticInput | None = None
+    sla: tuple[sla_rules.Assessment, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -244,7 +249,51 @@ def correlate_quality(
             incidents = _replacing(incidents, incident)
             touched.append(incident)
 
+    if payload.sla is not None:
+        for item in payload.sla:
+            if not item.at_risk:
+                continue
+            incident, created = _open_sla_risk(incidents, tenant_id, item, now)
+            radius = _impact_of(item.asset, payload, now)
+            if radius.nodes:
+                subida = impact_rules.escalation(incident.severity, radius)
+                incident = incident.with_impact(
+                    assets=radius.assets,
+                    score=radius.score,
+                    policy_version=radius.policy_version,
+                    severity=subida.to_severity if subida else None,
+                    escalation_reason=subida.reason if subida else "",
+                )
+            evidencia = _sla_evidence(item, now)
+            entries.append(
+                TimelineEntry.create(
+                    incident_id=incident.incident_id,
+                    at=now,
+                    kind="detected" if created else "recurrence",
+                    summary=sla_rules.summary(item),
+                    evidence_ids=(evidencia.evidence_id,),
+                )
+            )
+            evidences.append((incident.incident_id, evidencia))
+            incidents = _replacing(incidents, incident)
+            touched.append(incident)
+
+        # A superação vem antes da resolução: `violado` não é "avaliado e sem risco". Se entrasse
+        # na resolução, o risco que virou violação seria fechado como `recovered` — uma mentira.
+        violados = frozenset(item.asset for item in payload.sla if item.klass == sla_rules.VIOLADO)
+        for incident, entry in sla_rules.superseded(incidents, violados, SLA_RISK, now):
+            entries.append(entry)
+            incidents = _replacing(incidents, incident)
+            touched.append(incident)
+
     avaliados, violando = _current_state(current)
+    if payload.sla is not None:
+        avaliados = avaliados | frozenset(
+            (item.asset, SLA_RISK)
+            for item in payload.sla
+            if item.klass in (sla_rules.NO_PRAZO, *sla_rules.AT_RISK)
+        )
+        violando = violando | frozenset((item.asset, SLA_RISK) for item in payload.sla if item.at_risk)
     if payload.semantics is not None:
         sem_avaliados, sem_violando = semantic.current_state(
             payload.semantics.observed, payload.semantics.sources, payload.semantics.divergences
@@ -256,6 +305,39 @@ def correlate_quality(
         touched.append(incident)
 
     return touched, entries, evidences, hypotheses
+
+
+def _open_sla_risk(incidents: list[Incident], tenant_id: str, item, now: datetime) -> tuple[Incident, bool]:
+    """Abre ou atualiza o risco do ativo; a severidade acompanha a piora (em risco → inevitável)."""
+    event_id = f"sla-{item.asset}-{item.deadline:%Y%m%dT%H%M}"
+    incident, created = open_or_update_for_asset(
+        incidents, tenant_id, item.asset, SLA_RISK, event_id, now, severity=item.severity
+    )
+    if not created and rank_of(item.severity) > rank_of(incident.severity):
+        incident = replace(incident, severity=item.severity)
+    return incident, created
+
+
+def _sla_evidence(item, now: datetime) -> Evidence:
+    payload = {
+        "slo_kind": item.slo_kind,
+        "deadline": item.deadline.isoformat() if item.deadline else None,
+        "klass": item.klass,
+        "slack_s": item.slack_s,
+        "remaining_s": item.remaining_s,
+        "cycle_latency_s": sla_rules.LATENCIA_CICLO_S,
+        "margin_s": sla_rules.MARGEM_S,
+        "producer_job_id": item.producer_job_id,
+        "producer_state": item.producer_state,
+        "policy_version": sla_rules.POLICY_VERSION,
+    }
+    return Evidence.create(
+        kind="sla_prediction",
+        source_ref=f"sla/{item.asset}/{item.slo_kind}/{item.deadline:%Y%m%dT%H%M}",
+        observed_at=now,
+        summary=sla_rules.summary(item),
+        value=json.dumps(payload, ensure_ascii=False),
+    )
 
 
 def _current_state(results: list[RuleResult]) -> tuple[frozenset, frozenset]:

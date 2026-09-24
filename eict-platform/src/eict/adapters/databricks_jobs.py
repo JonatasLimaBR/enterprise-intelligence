@@ -36,6 +36,19 @@ def list_monitored_jobs(client: Any, tag: str = MONITOR_TAG) -> list[MonitoredJo
     return jobs
 
 
+def active_run(client: Any, job: MonitoredJob) -> tuple[str, datetime] | None:
+    """Run em andamento mais recente do job: (run_id, início), ou `None` se parado.
+
+    O `collect` só lista runs concluídos; sem isto, um produtor já entregando apareceria como
+    parado e o risco de SLA alarmaria justamente quem está cumprindo o prazo.
+    """
+    for base_run in client.jobs.list_runs(job_id=int(job.job_id), active_only=True, limit=1):
+        start_ms = getattr(base_run, "start_time", None)
+        if start_ms:
+            return str(base_run.run_id), _to_datetime(start_ms)
+    return None
+
+
 def environment_hash(settings: Any) -> str:
     environments = getattr(settings, "environments", None) or []
     spec = [

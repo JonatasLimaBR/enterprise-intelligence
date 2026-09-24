@@ -11,6 +11,7 @@ RUNTIME_REGRESSION = "runtime_regression"
 CONTRACT_VIOLATION = "contract_violation"
 QUALITY_ENGINE_FAILURE = "quality_engine_failure"
 SEMANTIC_CONFLICT = "semantic_conflict"
+SLA_RISK = "sla_risk"
 DEFAULT_SEVERITY = "high"
 
 

@@ -29,6 +29,26 @@ def table_columns(spark: Any, asset: str) -> dict[str, str]:
     return {row["column_name"]: row["full_data_type"] for row in rows}
 
 
+def write_times(spark: Any, asset: str, since: Any) -> list:
+    """Instantes das escritas desde `since`, pelo histórico Delta.
+
+    O prazo diário e o desfecho de uma previsão perguntam "houve escrita neste intervalo?" — a
+    última escrita sozinha não responde quando houve mais de uma.
+    """
+    limite = since.isoformat(sep=" ", timespec="seconds")
+    try:
+        rows = spark.sql(
+            f"""
+            SELECT timestamp FROM (DESCRIBE HISTORY {asset})
+            WHERE operation NOT IN ('OPTIMIZE', 'VACUUM START', 'VACUUM END')
+              AND timestamp >= TIMESTAMP '{limite}'
+            """
+        ).collect()
+    except Exception as exc:
+        raise SchemaUnavailableError(f"{asset}: {exc}") from exc
+    return sorted(row["timestamp"] for row in rows)
+
+
 def last_write_delay_seconds(spark: Any, asset: str) -> tuple[Any, int]:
     """Última escrita e atraso em segundos, a partir do histórico Delta."""
     try:

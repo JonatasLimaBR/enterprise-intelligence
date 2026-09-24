@@ -474,46 +474,65 @@ def producer_states(spark, settings, producers: set[str], now) -> dict[str, bool
     """
     if not producers:
         return {}
+    from eict.jobs.sla_risk import load_monitored_jobs
+
     limite = (now - timedelta(hours=PRODUCER_WINDOW_HOURS)).isoformat(sep=" ", timespec="seconds")
     try:
         records = store.query(
             spark,
             f"""
-            SELECT job_name, max(end_time) AS ultima, max_by(result_state, end_time) AS estado
+            SELECT job_id, max_by(result_state, end_time) AS estado
             FROM {settings.table('gold', 'run_features')}
-            WHERE job_name IS NOT NULL AND end_time >= TIMESTAMP '{limite}'
-            GROUP BY job_name
+            WHERE end_time >= TIMESTAMP '{limite}'
+            GROUP BY job_id
             """,
         )
     except Exception as exc:
         logger.warning("estado dos produtores indisponível: %s", exc)
         return {}
+    return states_by_producer(producers, load_monitored_jobs(spark, settings), records)
 
+
+def states_by_producer(producers: set[str], jobs: list, records: list[dict]) -> dict[str, bool]:
+    """Produtor → último run na janela terminou com sucesso?
+
+    Resolve o produtor por nome exato e compara por `job_id`. Casar por substring do
+    `job_name` fazia o produtor do painel comercial herdar o estado do job pequeno, e deixava
+    de fora os runs antigos, que não têm nome gravado.
+    """
+    from eict.domain.producers import resolve
+
+    por_job = {str(record["job_id"]): record["estado"] for record in records}
     estados: dict[str, bool] = {}
     for producer in producers:
-        correspondentes = [
-            record for record in records if producer.lower() in (record["job_name"] or "").lower()
-        ]
-        estados[producer] = any(
-            record["estado"] == "SUCCESS" for record in correspondentes
-        )
+        resolucao = resolve(producer, jobs)
+        if resolucao.job is None:
+            continue
+        estados[producer] = por_job.get(resolucao.job.job_id) == "SUCCESS"
     return estados
 
 
-def correlate_quality_incidents(spark, settings, incidents, changes, now, graph=()) -> int:
+def correlate_quality_incidents(
+    spark, settings, incidents, changes, now, graph=(), history=(), regimes=()
+) -> int:
     """Roda o correlator de qualidade sobre os resultados de regra recentes."""
     from eict.adapters.contract_loader import load_directory
     from eict.jobs import correlate_quality as quality_correlator
+    from eict.jobs import sla_risk
     from eict.jobs.quality import contracts_dir
-
-    results = quality_correlator.load_recent_results(spark, settings, now)
-    semantics = quality_correlator.load_semantic_state(spark, settings, now)
-    if not results and semantics is None:
-        return 0
 
     contracts = {
         contract.asset: contract for contract in load_directory(contracts_dir(settings)).active
     }
+    results = quality_correlator.load_recent_results(spark, settings, now)
+    semantics = quality_correlator.load_semantic_state(spark, settings, now)
+    try:
+        sla_input = sla_risk.build(spark, settings, list(contracts.values()), list(history), list(regimes), now)
+    except Exception as exc:
+        logger.warning("risco de SLA não avaliado neste ciclo: %s", exc)
+        sla_input = None
+    if not results and semantics is None and sla_input is None:
+        return 0
     payload = quality_correlator.QualityInput(
         results=results,
         contracts=contracts,
@@ -526,6 +545,7 @@ def correlate_quality_incidents(spark, settings, incidents, changes, now, graph=
         max_depth=settings.impact_max_depth,
         excluded=settings.excluded_assets,
         semantics=semantics,
+        sla=sla_input.assessments if sla_input is not None else None,
     )
     touched, entries, evidences, hypotheses = quality_correlator.correlate_quality(
         payload, incidents, settings.tenant_id, now
@@ -554,10 +574,12 @@ def main(argv: list[str] | None = None) -> None:
     ]
     changes = load_changes(spark, settings)
     graph = refresh_graph(spark, settings, lineage_ready(capabilities), now)
+    features = load_features(spark, settings)
+    regimes = load_regimes(spark, settings)
     touched = correlate(
         spark,
         settings,
-        load_features(spark, settings),
+        features,
         changes,
         load_active_incidents(spark, settings),
         load_reviews(spark, settings),
@@ -565,10 +587,17 @@ def main(argv: list[str] | None = None) -> None:
         now,
         graph,
         load_closed_until(spark, settings),
-        load_regimes(spark, settings),
+        regimes,
     )
     quality_touched = correlate_quality_incidents(
-        spark, settings, load_active_incidents(spark, settings), changes, now, graph
+        spark,
+        settings,
+        load_active_incidents(spark, settings),
+        changes,
+        now,
+        graph,
+        [item.run for item in features],
+        regimes,
     )
     logger.info(
         "correlacionados: %s incidentes de runtime, %s de qualidade",

@@ -212,6 +212,39 @@ def _optional_float(value) -> float | None:
     return None if value is None else float(value)
 
 
+def monitored_job_row(job, active: tuple | None, observed_at) -> dict:
+    from eict.domain.producers import normalize
+
+    return {
+        "job_id": job.job_id,
+        "name": job.name,
+        "normalized_name": normalize(job.name),
+        "active_run_id": active[0] if active else None,
+        "active_since": active[1] if active else None,
+        "observed_at": observed_at,
+    }
+
+
+def sla_prediction_row(assessment, predicted_at, policy_version: str) -> dict:
+    return {
+        "prediction_id": stable_id(
+            "slap", assessment.asset, assessment.slo_kind, str(assessment.deadline), predicted_at.isoformat()
+        ),
+        "asset": assessment.asset,
+        "slo_kind": assessment.slo_kind,
+        "deadline": assessment.deadline,
+        "predicted_at": predicted_at,
+        "remaining_s": assessment.remaining_s,
+        "slack_s": assessment.slack_s,
+        "klass": assessment.klass,
+        "producer_job_id": assessment.producer_job_id or None,
+        "producer_state": assessment.producer_state or None,
+        "policy_version": policy_version,
+        "outcome": None,
+        "outcome_at": None,
+    }
+
+
 def regime_row(regime) -> dict:
     return {
         "regime_id": regime.regime_id,

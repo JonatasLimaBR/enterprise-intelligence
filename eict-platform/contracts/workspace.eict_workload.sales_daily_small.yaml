@@ -1,0 +1,24 @@
+contract_id: workspace.eict_workload.sales_daily_small
+version: 1.0.0
+status: active
+owner: comercial-dados@exemplo.com
+producer: eict-demo-sales-daily-small
+asset: workspace.eict_workload.sales_daily_small
+classification: internal
+
+consumers:
+  - Apresentação da demo (gatilho ao vivo)
+
+# Janela curta de propósito: com produtor de ~3 min e ciclo de ~10 min, o risco aparece entre
+# ~12 e ~17 min depois de um run — antes da violação aos 30 min (DESIGN EICT_SLA_RISK, D9).
+slo:
+  freshness: 30m
+
+quality:
+  - rule_id: sales_daily_small_fresh
+    dimension: freshness
+    threshold: "<= 30m"
+    severity: warning
+    owner: comercial-dados@exemplo.com
+    window: current_state
+    description: Versão reduzida do painel, usada no gatilho ao vivo; warning para não disputar com o incidente central.

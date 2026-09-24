@@ -131,6 +131,26 @@ def collect_runs(spark: Any, workspace: Any, settings: Settings, source: str) ->
     return envelopes
 
 
+def collect_monitored_jobs(spark: Any, workspace: Any, settings: Settings) -> int:
+    """Registro dos jobs monitorados, com o run em andamento de cada um.
+
+    É daqui que o produtor de um contrato é resolvido por nome exato — e não por substring do
+    `job_name` dos runs, nulo nos runs antigos.
+    """
+    agora = _now()
+    linhas = []
+    for job in databricks_jobs.list_monitored_jobs(workspace):
+        try:
+            ativo = databricks_jobs.active_run(workspace, job)
+        except Exception as exc:
+            logger.warning("runs ativos de %s indisponíveis: %s", job.name, exc)
+            ativo = None
+        linhas.append(store.monitored_job_row(job, ativo, agora))
+    if linhas:
+        store.merge_rows(spark, settings.table("ops", "monitored_jobs"), linhas, ["job_id"])
+    return len(linhas)
+
+
 def backfill_timings(workspace: Any, settings: Settings, source: str) -> list[Envelope]:
     """Timing de toda a história dos jobs monitorados, sem tocar no cursor do `collect`."""
     envelopes: list[Envelope] = []
@@ -188,6 +208,7 @@ def main(argv: list[str] | None = None) -> None:
     source = f"databricks/{workspace.config.host}"
 
     run_envelopes = collect_runs(spark, workspace, settings, source)
+    collect_monitored_jobs(spark, workspace, settings)
     shas = {
         envelope.data["git_sha"]
         for envelope in run_envelopes
