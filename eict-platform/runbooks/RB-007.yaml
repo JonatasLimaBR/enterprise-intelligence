@@ -1,0 +1,17 @@
+# Runbook versionado: muda por PR. status: aprovado | rascunho.
+# RASCUNHO escrito pelo agente em 2026-09-24 para cobrir uma lacuna — aguarda revisão do dono.
+runbook_id: RB-007
+title: Conflito semântico de métrica
+status: rascunho
+owner: data-steward@exemplo.com
+applies_to:
+  incident_types:
+  - semantic_conflict
+  hypothesis_codes: []
+  dimensions: []
+steps:
+- Ler as duas fórmulas citadas na evidência, com arquivo e linha.
+- Comparar cada uma com a definição canônica em metrics/*.yaml.
+- Identificar qual consumidor usa cada versão (raio de impacto).
+- Alinhar o código à definição canônica, ou atualizar a definição com o dono da métrica.
+- Confirmar no ciclo seguinte que a divergência sumiu.

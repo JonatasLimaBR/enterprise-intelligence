@@ -1,0 +1,18 @@
+# Runbook versionado: muda por PR. status: aprovado | rascunho.
+# Convertido de operations/RUNBOOKS.md em 2026-09-24, texto preservado; parágrafos divididos em passos.
+runbook_id: RB-002
+title: Freshness violation
+status: aprovado
+owner: engenharia-dados@exemplo.com
+applies_to:
+  incident_types:
+  - contract_violation
+  - sla_risk
+  dimensions:
+  - freshness
+  hypothesis_codes: []
+steps:
+- Verificar o upstream e a última partição escrita.
+- Medir o atraso da fonte e conferir timezone e watermark.
+- Conferir o contrato e os dependentes afetados.
+- Nunca reprocessar sem checar idempotência.

@@ -1,0 +1,25 @@
+# Runbook versionado: muda por PR. status: aprovado | rascunho.
+# Convertido de operations/RUNBOOKS.md em 2026-09-24, texto preservado; parágrafos divididos em passos.
+runbook_id: RB-001
+title: Regressão Spark
+status: aprovado
+owner: engenharia-dados@exemplo.com
+applies_to:
+  incident_types:
+  - runtime_regression
+  hypothesis_codes:
+  - skew_join_change
+  - code_change
+  - compute_change
+  - volume_growth
+  - change_temporal_only
+  dimensions: []
+steps:
+- Confirmar baseline, volume e versão.
+- Comparar stage/task distribution.
+- Verificar skew, spill, GC, executor loss e I/O.
+- Comparar plano/config/cluster/commit.
+- Validar join/cardinality e pruning.
+- Testar hipótese em amostra/stage.
+- Aplicar correção controlada.
+- Validar runtime, custo e qualidade.

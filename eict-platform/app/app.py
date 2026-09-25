@@ -11,6 +11,7 @@ from acceptance import IDENTITY_HEADER, refusal, statements
 from access import (
     ACCEPT_REGIME,
     ACKNOWLEDGE_INCIDENT,
+    FOLLOW_RUNBOOK,
     MANAGE_PROBLEM,
     REVIEW_HYPOTHESIS,
     REVIEW_RECOMMENDATION,
@@ -438,6 +439,8 @@ def render_connector_health() -> None:
     for linha in linhas:
         icone = SAUDE_ICONE.get(linha["status"], "⚪")
         st.sidebar.caption(f"{icone} {linha['connector']} — {linha['status']}: {linha['detail']}")
+    if any(linha["status"] in ("degradado", "falhando") for linha in linhas):
+        st.sidebar.caption("Procedimento: RB-006 — Connector lag (visão Runbooks).")
 
 
 def load_recommendations(incident_id: str) -> list[dict]:
@@ -473,6 +476,128 @@ def save_recommendation_review(recommendation: dict, decision: str, reviewer: st
 ROTULO_RECOMENDACAO = {"verificar": "Verificar", "agir": "Agir", "coletar_evidencia": "Coletar evidência"}
 
 
+def _safe_query(statement: str, parameters: dict | None = None) -> list[dict]:
+    """Read model que ainda não existe (antes do primeiro ciclo) aparece vazio, sem quebrar a tela."""
+    try:
+        return query(statement, parameters)
+    except Exception:
+        return []
+
+
+def load_incident_runbooks(incident_id: str) -> list[dict]:
+    return _safe_query(
+        f"SELECT ir.reason, ir.level, r.* FROM {table('ops', 'incident_runbooks')} ir "
+        f"JOIN {table('ops', 'runbooks')} r ON r.runbook_id = ir.runbook_id "
+        "WHERE ir.incident_id = :incident_id ORDER BY ir.level, r.status, r.runbook_id",
+        {"incident_id": incident_id},
+    )
+
+
+def follow_runbook(incident_id: str, runbook_id: str) -> None:
+    execute(
+        f"INSERT INTO {table('ops', 'runbook_usage')} (usage_id, incident_id, runbook_id, actor, at) "
+        "VALUES (:usage_id, :incident_id, :runbook_id, :actor, :at)",
+        {
+            "usage_id": str(uuid.uuid4()),
+            "incident_id": incident_id,
+            "runbook_id": runbook_id,
+            "actor": usuario,
+            "at": datetime.now(UTC),
+        },
+    )
+
+
+def render_runbooks_and_similar(incident: dict) -> None:
+    """O procedimento que se aplica e o que já aconteceu antes — com o motivo de cada escolha."""
+    st.subheader("Runbook e casos anteriores")
+    runbooks = load_incident_runbooks(incident["incident_id"])
+    if not runbooks:
+        st.caption("Sem runbook para este tipo de incidente.")
+    usados = {
+        row["runbook_id"]
+        for row in _safe_query(
+            f"SELECT runbook_id FROM {table('ops', 'runbook_usage')} WHERE incident_id = :incident_id",
+            {"incident_id": incident["incident_id"]},
+        )
+    }
+    pode = can(directory(), usuario, FOLLOW_RUNBOOK)
+    for runbook in runbooks:
+        rotulo = f"{runbook['runbook_id']} — {runbook['title']} · motivo: {runbook['reason']}"
+        if runbook["status"] == "rascunho":
+            rotulo += " · ⚠️ rascunho, ainda não revisado"
+        with st.expander(rotulo, expanded=runbook["level"] == 1):
+            for numero, passo in enumerate(runbook["steps"] or [], start=1):
+                st.markdown(f"{numero}. {passo}")
+            st.caption(f"dono: {runbook['owner']} · {runbook['source_file']}")
+            if runbook["runbook_id"] in usados:
+                st.caption("Uso registrado neste incidente.")
+            elif pode and st.button(f"Segui o {runbook['runbook_id']}", key=f"follow-{runbook['runbook_id']}"):
+                gravar = functools.partial(follow_runbook, incident["incident_id"], runbook["runbook_id"])
+                if guarded(FOLLOW_RUNBOOK, f"{incident['incident_id']}:{runbook['runbook_id']}", gravar):
+                    st.rerun()
+
+    similares = _safe_query(
+        f"SELECT * FROM {table('ops', 'similar_incidents')} WHERE incident_id = :incident_id ORDER BY rank",
+        {"incident_id": incident["incident_id"]},
+    )
+    if not similares:
+        st.caption("Nenhum caso semelhante nos últimos 90 dias.")
+        return
+    st.markdown("**Casos semelhantes**")
+    for caso in similares:
+        if caso["hours_to_recover"] is not None:
+            resolucao = f"recuperado em {caso['hours_to_recover']:.1f} h"
+        else:
+            resolucao = f"estado: {caso['similar_state']}"
+        st.markdown(f"- `{caso['similar_id']}` · {caso['reason']} · {resolucao}")
+        if caso.get("fix_description"):
+            workaround = f" · workaround: {caso['workaround']}" if caso.get("workaround") else ""
+            st.caption(f"   correção comprovada: {caso['fix_description']}{workaround}")
+
+
+def _efficacy_text(medida: dict | None) -> str:
+    if medida is None:
+        return "sem uso registrado"
+    if medida["efficacy"] is None:
+        return f"{medida['pending']} uso(s) aguardando desfecho"
+    decididos = medida["successes"] + medida["failures"]
+    pequena = ", amostra pequena" if medida["small_sample"] else ""
+    return (
+        f"eficácia {medida['efficacy'] * 100:.0f}% ({medida['successes']} de {decididos}{pequena})"
+        f" · {medida['pending']} pendente(s)"
+    )
+
+
+def render_runbooks_view() -> None:
+    st.title("Runbooks")
+    st.caption("Catálogo versionado (muda por PR), eficácia medida e o que os problemas resolvidos ensinaram.")
+    catalogo = _safe_query(f"SELECT * FROM {table('ops', 'runbooks')} ORDER BY runbook_id")
+    if not catalogo:
+        st.info("O catálogo é carregado pelo ciclo; aguardando o primeiro após a publicação.")
+        return
+    eficacia = {row["runbook_id"]: row for row in _safe_query(f"SELECT * FROM {table('ops', 'runbook_efficacy')}")}
+    for runbook in catalogo:
+        tipos = ", ".join(runbook["incident_types"] or [])
+        disparo = tipos or ("conectores" if runbook["connector"] else "sem disparo hoje")
+        aviso = " · ⚠️ rascunho" if runbook["status"] == "rascunho" else ""
+        st.markdown(f"**{runbook['runbook_id']} — {runbook['title']}**{aviso}")
+        st.caption(f"{disparo} · {_efficacy_text(eficacia.get(runbook['runbook_id']))}")
+
+    conhecimento = _safe_query(f"SELECT * FROM {table('ops', 'knowledge_items')} ORDER BY runbook_id")
+    st.subheader("Conhecimento de problemas resolvidos")
+    if not conhecimento:
+        st.caption("Nenhum problema resolvido com correção comprovada ainda.")
+    for item in conhecimento:
+        with st.expander(f"{item['symptom']} · causa {item['cause']} · {item['runbook_id'] or 'sem runbook'}"):
+            st.markdown(f"**Correção comprovada:** {item['fix_description']}")
+            if item.get("known_error"):
+                st.markdown(f"**Known error:** {item['known_error']}")
+            if item.get("workaround"):
+                st.markdown(f"**Workaround:** {item['workaround']}")
+            st.markdown("**Sugestão para o PR do runbook** (nada é gravado automaticamente):")
+            st.code(item["suggestion"], language=None)
+
+
 def render_recommendations(incident: dict) -> None:
     """Read-only: a plataforma recomenda, uma pessoa decide e executa."""
     recomendacoes = load_recommendations(incident["incident_id"])
@@ -481,6 +606,9 @@ def render_recommendations(incident: dict) -> None:
         st.caption("Nenhuma recomendação para este incidente.")
         return
     st.caption("Nada aqui é executado pela plataforma. Aceitar registra a decisão; a ação é sua.")
+    aplicaveis = load_incident_runbooks(incident["incident_id"])
+    if aplicaveis:
+        st.caption(f"Runbook aplicável: {aplicaveis[0]['runbook_id']} — {aplicaveis[0]['title']}")
     pode = can(directory(), usuario, REVIEW_RECOMMENDATION)
     for rec in recomendacoes:
         rotulo = ROTULO_RECOMENDACAO.get(rec["kind"], rec["kind"])
@@ -562,12 +690,15 @@ st.sidebar.caption(
 if directory().error:
     st.sidebar.warning(directory().error)
 render_connector_health()
-visoes = ["Resumo executivo", "Incidentes", "Problemas"] + (
+visoes = ["Resumo executivo", "Incidentes", "Problemas", "Runbooks"] + (
     ["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else []
 )
 visao = st.sidebar.radio("Visão", visoes)
 if visao == "Problemas":
     render_problems()
+    st.stop()
+if visao == "Runbooks":
+    render_runbooks_view()
     st.stop()
 if visao == "Resumo executivo":
     render_executive()
@@ -689,6 +820,7 @@ for hypothesis in load_hypotheses(incident["incident_id"]):
                 if guarded(REVIEW_HYPOTHESIS, hyp_id, gravar):
                     st.rerun()
 
+render_runbooks_and_similar(incident)
 render_recommendations(incident)
 
 st.subheader("Impacto")

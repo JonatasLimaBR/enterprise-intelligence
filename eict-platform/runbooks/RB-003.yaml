@@ -1,0 +1,15 @@
+# Runbook versionado: muda por PR. status: aprovado | rascunho.
+# Convertido de operations/RUNBOOKS.md em 2026-09-24, texto preservado; parágrafos divididos em passos.
+runbook_id: RB-003
+title: Cost anomaly
+status: aprovado
+owner: finops@exemplo.com
+applies_to:
+  incident_types:
+  - cost_regression
+  hypothesis_codes: []
+  dimensions: []
+steps:
+- Separar volume, preço, tempo, workers, retries, scan e shuffle.
+- Verificar mudança de configuração (compute, performance_target).
+- Confirmar moeda e tags de alocação.

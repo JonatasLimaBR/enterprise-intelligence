@@ -41,6 +41,17 @@ def append_rows(spark: Any, table: str, rows: list[dict]) -> int:
     return len(rows)
 
 
+def replace_rows(spark: Any, table: str, rows: list[dict]) -> int:
+    """Substitui o conteúdo inteiro de um read model, mantendo schema e propriedades.
+
+    Para tabela recalculada por completo a cada ciclo: com `merge`, uma linha que deixou de valer
+    (runbook alterado, incidente fechado) ficaria para sempre. Lista vazia esvazia a tabela —
+    "nenhum semelhante" é uma resposta, não ausência dela.
+    """
+    frame_for(spark, table, rows).write.mode("overwrite").saveAsTable(table)
+    return len(rows)
+
+
 def merge_rows(spark: Any, table: str, rows: list[dict], keys: list[str]) -> int:
     if not rows:
         return 0

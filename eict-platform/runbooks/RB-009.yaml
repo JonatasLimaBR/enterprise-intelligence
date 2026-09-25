@@ -1,0 +1,23 @@
+# Runbook versionado: muda por PR. status: aprovado | rascunho.
+# RASCUNHO escrito pelo agente em 2026-09-24 para cobrir uma lacuna — aguarda revisão do dono.
+runbook_id: RB-009
+title: Violação estrutural de contrato
+status: rascunho
+owner: data-steward@exemplo.com
+applies_to:
+  incident_types:
+  - contract_violation
+  dimensions:
+  - schema
+  - uniqueness
+  - referential
+  - completeness
+  - validity
+  - volume
+  hypothesis_codes: []
+steps:
+- Identificar a regra violada e a dimensão na evidência.
+- Comparar o schema e a amostra de chaves com o contrato.
+- Verificar mudança recente no produtor ou na origem (hipóteses do incidente).
+- Avisar os consumidores antes do próximo deploy se a regra for bloqueante.
+- Corrigir na origem ou no produtor; nunca afrouxar a regra para passar.

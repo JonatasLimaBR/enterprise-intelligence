@@ -126,3 +126,12 @@ def test_quem_gerencia_problemas():
     assert authorize(DIRETORIO, "bia@exemplo.com", MANAGE_PROBLEM).allowed       # engenheiro_dados
     assert authorize(DIRETORIO, "duda@exemplo.com", MANAGE_PROBLEM).allowed      # data_steward
     assert not authorize(DIRETORIO, "ana@exemplo.com", MANAGE_PROBLEM).allowed   # operador
+
+
+def test_quem_registra_uso_de_runbook():
+    from access import FOLLOW_RUNBOOK
+
+    assert authorize(DIRETORIO, "ana@exemplo.com", FOLLOW_RUNBOOK).allowed       # operador
+    assert authorize(DIRETORIO, "bia@exemplo.com", FOLLOW_RUNBOOK).allowed       # engenheiro_dados
+    assert not authorize(DIRETORIO, "duda@exemplo.com", FOLLOW_RUNBOOK).allowed  # data_steward
+    assert not authorize(DIRETORIO, "caio@exemplo.com", FOLLOW_RUNBOOK).allowed  # auditor

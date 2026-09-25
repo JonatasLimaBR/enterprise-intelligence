@@ -1,0 +1,16 @@
+# Runbook versionado: muda por PR. status: aprovado | rascunho.
+# Convertido de operations/RUNBOOKS.md em 2026-09-24, texto preservado; parágrafos divididos em passos.
+runbook_id: RB-004
+title: Agent tool blocked
+status: aprovado
+owner: seguranca@exemplo.com
+applies_to:
+  incident_types: []
+  hypothesis_codes: []
+  dimensions: []
+steps:
+- Preservar a evidência.
+- Confirmar a policy que bloqueou.
+- Verificar a origem do input e tentativa de injection.
+- Verificar o escopo da credencial.
+- Não liberar permissão ampla como workaround.

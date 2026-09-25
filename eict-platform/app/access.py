@@ -26,6 +26,7 @@ VIEW_AUDIT = "view_audit"
 ACKNOWLEDGE_INCIDENT = "acknowledge_incident"
 REVIEW_RECOMMENDATION = "review_recommendation"
 MANAGE_PROBLEM = "manage_problem"
+FOLLOW_RUNBOOK = "follow_runbook"
 
 PERMISSIONS: dict[str, frozenset[str]] = {
     REVIEW_HYPOTHESIS: frozenset({OPERADOR, ENGENHEIRO_DADOS}),
@@ -33,6 +34,7 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     ACKNOWLEDGE_INCIDENT: frozenset({OPERADOR, ENGENHEIRO_DADOS}),
     REVIEW_RECOMMENDATION: frozenset({OPERADOR, ENGENHEIRO_DADOS, DATA_STEWARD}),
     MANAGE_PROBLEM: frozenset({ENGENHEIRO_DADOS, DATA_STEWARD}),
+    FOLLOW_RUNBOOK: frozenset({OPERADOR, ENGENHEIRO_DADOS}),
     # Segregação: quem audita lê a trilha e não age; quem age não lê a trilha.
     VIEW_AUDIT: frozenset({DATA_STEWARD, AUDITOR}),
 }

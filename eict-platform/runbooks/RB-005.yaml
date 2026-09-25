@@ -1,0 +1,16 @@
+# Runbook versionado: muda por PR. status: aprovado | rascunho.
+# Convertido de operations/RUNBOOKS.md em 2026-09-24, texto preservado; parágrafos divididos em passos.
+runbook_id: RB-005
+title: Secret detected
+status: aprovado
+owner: seguranca@exemplo.com
+applies_to:
+  incident_types: []
+  hypothesis_codes: []
+  dimensions: []
+steps:
+- Bloquear a exposição.
+- Revogar e rotacionar imediatamente.
+- Remover do histórico conforme procedimento aprovado.
+- Identificar uso e revisar logs.
+- Tratar o segredo como comprometido.

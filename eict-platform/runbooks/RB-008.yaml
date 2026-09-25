@@ -1,0 +1,16 @@
+# Runbook versionado: muda por PR. status: aprovado | rascunho.
+# RASCUNHO escrito pelo agente em 2026-09-24 para cobrir uma lacuna — aguarda revisão do dono.
+runbook_id: RB-008
+title: Falha do motor de qualidade
+status: rascunho
+owner: engenharia-dados@exemplo.com
+applies_to:
+  incident_types:
+  - quality_engine_failure
+  hypothesis_codes: []
+  dimensions: []
+steps:
+- Ler o erro de execução da regra na evidência.
+- 'Separar: erro na regra, falta de acesso ou tabela ausente.'
+- Corrigir a regra no contrato ou o acesso do job — não é defeito do dado.
+- Confirmar no ciclo seguinte que a regra foi avaliada.

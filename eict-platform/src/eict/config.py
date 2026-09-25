@@ -25,6 +25,7 @@ class Settings:
     metrics_dir: str = ""
     workload_repo: str = ""
     baselines_dir: str = ""
+    runbooks_dir: str = ""
 
     @property
     def excluded_assets(self) -> tuple[str, ...]:
@@ -59,6 +60,7 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
     parser.add_argument("--metrics-dir", default="")
     parser.add_argument("--workload-repo", default="")
     parser.add_argument("--baselines-dir", default="")
+    parser.add_argument("--runbooks-dir", default="")
     known, _ = parser.parse_known_args(argv)
     return Settings(
         catalog=known.catalog,
@@ -76,4 +78,5 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
         metrics_dir=known.metrics_dir,
         workload_repo=known.workload_repo,
         baselines_dir=known.baselines_dir,
+        runbooks_dir=known.runbooks_dir,
     )

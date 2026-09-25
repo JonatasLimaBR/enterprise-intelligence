@@ -537,11 +537,12 @@ def correlate_quality_incidents(
     return len(touched)
 
 
-def refresh_problems(spark: Any, settings: Settings, now: datetime) -> int:
-    """Candidatos a problema e estado de eficácia dos promovidos. Escreve só `problem_candidates`."""
-    from eict.domain import problems
+def reviewed_hypotheses(spark: Any, settings: Settings) -> dict[str, list[dict]]:
+    """Hipóteses por incidente, com o status da revisão humana mais recente aplicado.
 
-    incidentes = store.query(spark, f"SELECT * FROM {settings.table('ops', 'incidents')}")
+    Problemas, recomendações e conhecimento decidem a causa por aqui: uma hipótese descartada por
+    alguém não pode continuar definindo a causa em lugar nenhum.
+    """
     revisoes = {
         record["hypothesis_id"]: record["decision"]
         for record in sorted(
@@ -553,6 +554,15 @@ def refresh_problems(spark: Any, settings: Settings, now: datetime) -> int:
     for hipotese in store.query(spark, f"SELECT * FROM {settings.table('ops', 'hypotheses')}"):
         revisada = {**hipotese, "status": revisoes.get(hipotese["hypothesis_id"], hipotese.get("status"))}
         por_incidente.setdefault(hipotese["incident_id"], []).append(revisada)
+    return por_incidente
+
+
+def refresh_problems(spark: Any, settings: Settings, now: datetime) -> int:
+    """Candidatos a problema e estado de eficácia dos promovidos. Escreve só `problem_candidates`."""
+    from eict.domain import problems
+
+    incidentes = store.query(spark, f"SELECT * FROM {settings.table('ops', 'incidents')}")
+    por_incidente = reviewed_hypotheses(spark, settings)
     registros = {
         record["problem_id"]: record
         for record in store.query(spark, f"SELECT * FROM {settings.table('ops', 'problem_records')}")
@@ -580,18 +590,7 @@ def refresh_recommendations(spark: Any, settings: Settings, now: datetime) -> in
     incidentes = store.query(
         spark, f"SELECT * FROM {settings.table('ops', 'incidents')} WHERE state IN ({states})"
     )
-    hipoteses = store.query(spark, f"SELECT * FROM {settings.table('ops', 'hypotheses')}")
-    revisoes = {
-        record["hypothesis_id"]: record["decision"]
-        for record in sorted(
-            store.query(spark, f"SELECT * FROM {settings.table('ops', 'hypothesis_reviews')}"),
-            key=lambda record: record["at"],
-        )
-    }
-    por_incidente: dict[str, list[dict]] = {}
-    for hipotese in hipoteses:
-        revisada = {**hipotese, "status": revisoes.get(hipotese["hypothesis_id"], hipotese.get("status"))}
-        por_incidente.setdefault(hipotese["incident_id"], []).append(revisada)
+    por_incidente = reviewed_hypotheses(spark, settings)
     linhas = [
         {
             "recommendation_id": rec.recommendation_id,
@@ -703,6 +702,12 @@ def main(argv: list[str] | None = None) -> None:
         refresh_problems(spark, settings, now)
     except Exception as exc:
         logger.warning("problemas não avaliados neste ciclo: %s", exc)
+    try:
+        from eict.jobs import knowledge as knowledge_job
+
+        knowledge_job.refresh(spark, settings, now)
+    except Exception as exc:
+        logger.warning("runbooks e conhecimento não atualizados neste ciclo: %s", exc)
     try:
         refresh_recommendations(spark, settings, now)
     except Exception as exc:

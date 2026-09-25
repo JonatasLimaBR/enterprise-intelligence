@@ -149,6 +149,74 @@ TABLES: dict[tuple[str, str], str] = {
         promoted_by STRING,
         promoted_at TIMESTAMP
     """,
+    # Runbooks e conhecimento: o uso é do humano (App); o resto são read models do ciclo,
+    # substituídos por inteiro a cada ciclo.
+    ("ops", "runbook_usage"): """
+        usage_id STRING NOT NULL,
+        incident_id STRING,
+        runbook_id STRING,
+        actor STRING,
+        at TIMESTAMP
+    """,
+    ("ops", "runbooks"): """
+        runbook_id STRING NOT NULL,
+        title STRING,
+        status STRING,
+        owner STRING,
+        incident_types ARRAY<STRING>,
+        hypothesis_codes ARRAY<STRING>,
+        dimensions ARRAY<STRING>,
+        steps ARRAY<STRING>,
+        connector BOOLEAN,
+        source_file STRING,
+        loaded_at TIMESTAMP
+    """,
+    ("ops", "incident_runbooks"): """
+        incident_id STRING NOT NULL,
+        runbook_id STRING,
+        level INT,
+        reason STRING,
+        status STRING,
+        evaluated_at TIMESTAMP
+    """,
+    ("ops", "similar_incidents"): """
+        incident_id STRING NOT NULL,
+        similar_id STRING,
+        level INT,
+        reason STRING,
+        similar_subject STRING,
+        similar_state STRING,
+        hours_to_recover DOUBLE,
+        known_error STRING,
+        workaround STRING,
+        fix_description STRING,
+        rank INT,
+        evaluated_at TIMESTAMP
+    """,
+    ("ops", "runbook_efficacy"): """
+        runbook_id STRING NOT NULL,
+        uses INT,
+        successes INT,
+        failures INT,
+        pending INT,
+        efficacy DOUBLE,
+        median_hours_to_recover DOUBLE,
+        small_sample BOOLEAN,
+        evaluated_at TIMESTAMP
+    """,
+    ("ops", "knowledge_items"): """
+        knowledge_id STRING NOT NULL,
+        problem_id STRING,
+        signature STRING,
+        runbook_id STRING,
+        symptom STRING,
+        cause STRING,
+        known_error STRING,
+        workaround STRING,
+        fix_description STRING,
+        suggestion STRING,
+        evaluated_at TIMESTAMP
+    """,
     ("ops", "recommendations"): """
         recommendation_id STRING NOT NULL,
         incident_id STRING,

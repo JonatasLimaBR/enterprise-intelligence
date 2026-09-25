@@ -1,0 +1,16 @@
+# Runbook versionado: muda por PR. status: aprovado | rascunho.
+# Convertido de operations/RUNBOOKS.md em 2026-09-24, texto preservado; parágrafos divididos em passos.
+runbook_id: RB-006
+title: Connector lag
+status: aprovado
+owner: plataforma@exemplo.com
+applies_to:
+  incident_types: []
+  connector: true
+  hypothesis_codes: []
+  dimensions: []
+steps:
+- Checar credencial, quota e cursor.
+- Checar mudança de schema e endpoint.
+- Revisar a DLQ e o backpressure.
+- Reprocessar com janela explícita e idempotência.
