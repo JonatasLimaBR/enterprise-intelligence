@@ -37,6 +37,10 @@ resources:
           default: ${workspace.file_path}/baselines
         - name: runbooks_dir
           default: ${workspace.file_path}/runbooks
+        - name: allocation_dir
+          default: ${workspace.file_path}/allocation
+        - name: platform_warehouse_id
+          default: ${var.warehouse_id}
       environments:
         - environment_key: default
           spec:
@@ -66,4 +70,6 @@ resources:
               - "--workload-repo={{job.parameters.workload_repo}}"
               - "--baselines-dir={{job.parameters.baselines_dir}}"
               - "--runbooks-dir={{job.parameters.runbooks_dir}}"
+              - "--allocation-dir={{job.parameters.allocation_dir}}"
+              - "--platform-warehouse-id={{job.parameters.platform_warehouse_id}}"
               - "--pipeline-id=${resources.pipelines.medallion.id}"

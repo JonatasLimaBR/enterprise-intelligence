@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from eict.domain.models import Run
+from eict.domain.models import SUCCESS_STATE, Run
 
 MONITOR_TAG = "eict_monitor"
 TERMINAL_LIFE_CYCLE_STATES = {"TERMINATED", "INTERNAL_ERROR", "SKIPPED"}
@@ -47,6 +47,20 @@ def active_run(client: Any, job: MonitoredJob) -> tuple[str, datetime] | None:
         if start_ms:
             return str(base_run.run_id), _to_datetime(start_ms)
     return None
+
+
+def run_results(client: Any, job_ids: list[str], since_ms: int) -> dict[str, bool]:
+    """Sucesso de cada run concluído desde `since_ms`, para jobs fora de `run_features`.
+
+    O próprio ciclo EICT não é monitorado; sem isto, o custo por ciclo não saberia quais runs
+    deram certo.
+    """
+    resultados: dict[str, bool] = {}
+    for job_id in job_ids:
+        for base_run in client.jobs.list_runs(job_id=int(job_id), completed_only=True, start_time_from=since_ms):
+            estado = _enum_value(getattr(getattr(base_run, "state", None), "result_state", None))
+            resultados[str(base_run.run_id)] = estado == SUCCESS_STATE
+    return resultados
 
 
 def environment_hash(settings: Any) -> str:

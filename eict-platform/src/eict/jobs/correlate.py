@@ -713,6 +713,12 @@ def main(argv: list[str] | None = None) -> None:
     except Exception as exc:
         logger.warning("recomendações não geradas neste ciclo: %s", exc)
     try:
+        from eict.jobs import finops
+
+        finops.refresh(spark, settings, now)
+    except Exception as exc:
+        logger.warning("showback de custos não atualizado neste ciclo: %s", exc)
+    try:
         refresh_executive_summary(spark, settings, now)
     except Exception as exc:
         logger.warning("resumo executivo não atualizado neste ciclo: %s", exc)

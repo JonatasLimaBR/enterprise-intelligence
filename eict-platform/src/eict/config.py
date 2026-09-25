@@ -26,6 +26,9 @@ class Settings:
     workload_repo: str = ""
     baselines_dir: str = ""
     runbooks_dir: str = ""
+    allocation_dir: str = ""
+    pipeline_id: str = ""
+    platform_warehouse_id: str = ""
 
     @property
     def excluded_assets(self) -> tuple[str, ...]:
@@ -61,6 +64,9 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
     parser.add_argument("--workload-repo", default="")
     parser.add_argument("--baselines-dir", default="")
     parser.add_argument("--runbooks-dir", default="")
+    parser.add_argument("--allocation-dir", default="")
+    parser.add_argument("--pipeline-id", default="")
+    parser.add_argument("--platform-warehouse-id", default="")
     known, _ = parser.parse_known_args(argv)
     return Settings(
         catalog=known.catalog,
@@ -79,4 +85,7 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
         workload_repo=known.workload_repo,
         baselines_dir=known.baselines_dir,
         runbooks_dir=known.runbooks_dir,
+        allocation_dir=known.allocation_dir,
+        pipeline_id=known.pipeline_id,
+        platform_warehouse_id=known.platform_warehouse_id,
     )

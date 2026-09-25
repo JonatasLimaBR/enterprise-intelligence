@@ -1,0 +1,11 @@
+# Domínio comercial. Os dois jobs abaixo também são produtores de contrato: a regra deste
+# arquivo vence (precedência YAML → contrato). `eict-demo-generate-data` fica de fora de
+# propósito e é alocado pelo contrato; `eict-demo-break-contract` aparece como não alocado.
+business_unit: vendas
+domain: comercial
+owner: comercial-dados@exemplo.com
+products:
+  - product: painel-comercial
+    jobs:
+      - eict-demo-sales-daily
+      - eict-demo-sales-daily-small

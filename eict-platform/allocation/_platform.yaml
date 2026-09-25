@@ -1,0 +1,10 @@
+# Pool da plataforma EICT: o custo de observar, visível e sem rateio.
+# Pipeline e warehouse da plataforma chegam pelos parâmetros do job (--pipeline-id,
+# --platform-warehouse-id), porque os ids mudam a cada target.
+pool: plataforma-eict
+owner: plataforma@exemplo.com
+jobs:
+  - eict-cycle
+  - eict-backfill-timing
+apps:
+  - eict-console

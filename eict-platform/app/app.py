@@ -25,6 +25,7 @@ from acknowledge import statements as acknowledge_statements
 from audit import ADULTERADA, BIFURCADA, entry, verify
 from databricks import sql
 from databricks.sdk.core import Config
+from money import fmt_money, fmt_share
 
 CATALOG = os.getenv("EICT_CATALOG", "workspace")
 SCHEMA_PREFIX = os.getenv("EICT_SCHEMA_PREFIX", "eict_")
@@ -598,6 +599,95 @@ def render_runbooks_view() -> None:
             st.code(item["suggestion"], language=None)
 
 
+CATEGORIA_CUSTO = {"dominio": "Com dono", "plataforma": "Pool da plataforma EICT", "nao_alocado": "Não alocado"}
+
+
+def render_costs() -> None:
+    """Showback (PRD-070 F2/F3/F5): de quem é o custo, o que não tem dono e quanto custa cada unidade."""
+    st.title("Custos")
+    st.caption("Showback, não chargeback. Mapeamento em `allocation/*.yaml`, alterado só por PR.")
+    conciliacoes = _safe_query(f"SELECT * FROM {table('ops', 'cost_reconciliation')} ORDER BY period_label DESC")
+    if not conciliacoes:
+        st.info("O showback é calculado pelo ciclo, no máximo uma vez por hora; aguardando o primeiro.")
+        return
+    periodo = st.radio("Período", [row["period_label"] for row in conciliacoes], horizontal=True)
+    conciliacao = next(row for row in conciliacoes if row["period_label"] == periodo)
+    moeda, base = conciliacao["currency"], conciliacao["price_basis"]
+    estado = conciliacao["period_status"]
+    if conciliacao["watermark"]:
+        estado += f" · dados do billing até {conciliacao['watermark']:%d/%m %H:%M} UTC"
+    st.caption(f"{estado} · escopo: {conciliacao['scope']} · calculado em {conciliacao['computed_at']:%d/%m %H:%M} UTC")
+    if conciliacao["reconciled"]:
+        diferenca = fmt_money(conciliacao["difference"], moeda, periodo, base)
+        st.success(f"Reconciliado com o billing: diferença {diferenca}")
+    else:
+        st.error(f"Não reconciliado — {conciliacao['reason']}. Os valores abaixo não fecham com o billing.")
+    colunas = st.columns(4)
+    colunas[0].metric("Total do billing", fmt_money(conciliacao["total_billing"], moeda, periodo, base))
+    colunas[1].metric("Com dono", fmt_money(conciliacao["allocated"], moeda, periodo, base))
+    colunas[2].metric("Pool da plataforma", fmt_money(conciliacao["platform_pool"], moeda, periodo, base))
+    colunas[3].metric("Não alocado", fmt_money(conciliacao["unallocated"], moeda, periodo, base))
+    st.caption(
+        f"Qualidade do mapeamento: {fmt_share(conciliacao['allocated_share'])} do custo com dono (pool fora da conta)"
+        + (f" · {conciliacao['unpriced_dbus']:.2f} DBUs sem preço de lista" if conciliacao["unpriced_dbus"] else "")
+    )
+
+    alocacao = _safe_query(
+        f"SELECT * FROM {table('ops', 'cost_allocation')} WHERE period_label = :periodo ORDER BY category, cost DESC",
+        {"periodo": periodo},
+    )
+    for categoria, titulo in CATEGORIA_CUSTO.items():
+        linhas = [row for row in alocacao if row["category"] == categoria]
+        if not linhas:
+            continue
+        st.subheader(titulo)
+        st.dataframe(
+            [
+                {
+                    "Unidade de negócio": row["business_unit"],
+                    "Domínio": row["domain"],
+                    "Produto": row["product"],
+                    "Dono": row["owner"],
+                    "Recurso": f"{row['resource_kind']} {row['resource_name'] or row['resource_id']}".strip(),
+                    "Motivo": row["reason"],
+                    "Custo": fmt_money(row["cost"], moeda, periodo, base),
+                }
+                for row in linhas
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    unidades = _safe_query(
+        f"SELECT * FROM {table('ops', 'cost_units')} WHERE period_label = :periodo ORDER BY unit, subject",
+        {"periodo": periodo},
+    )
+    st.subheader("Custo por unidade")
+    st.dataframe(
+        [
+            {
+                "Unidade": row["unit"],
+                "Sujeito": row["subject"],
+                "Dono": row["owner"],
+                "Mediana": fmt_money(row["median"], moeda, periodo, base),
+                "Média": fmt_money(row["mean"], moeda, periodo, base),
+                "n": row["n"],
+                "Estado": row["status"],
+                "Fórmula": row["formula"],
+            }
+            for row in unidades
+        ],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    regras = _safe_query(f"SELECT * FROM {table('ops', 'allocation_rules')} WHERE status <> 'ativa'")
+    if regras:
+        st.subheader("Regras com problema")
+        for regra in regras:
+            st.warning(f"{regra['source_file']} · {regra['status']} · {regra['job_name']} {regra['detail']}".strip())
+
+
 def render_recommendations(incident: dict) -> None:
     """Read-only: a plataforma recomenda, uma pessoa decide e executa."""
     recomendacoes = load_recommendations(incident["incident_id"])
@@ -690,7 +780,7 @@ st.sidebar.caption(
 if directory().error:
     st.sidebar.warning(directory().error)
 render_connector_health()
-visoes = ["Resumo executivo", "Incidentes", "Problemas", "Runbooks"] + (
+visoes = ["Resumo executivo", "Incidentes", "Problemas", "Runbooks", "Custos"] + (
     ["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else []
 )
 visao = st.sidebar.radio("Visão", visoes)
@@ -699,6 +789,9 @@ if visao == "Problemas":
     st.stop()
 if visao == "Runbooks":
     render_runbooks_view()
+    st.stop()
+if visao == "Custos":
+    render_costs()
     st.stop()
 if visao == "Resumo executivo":
     render_executive()
