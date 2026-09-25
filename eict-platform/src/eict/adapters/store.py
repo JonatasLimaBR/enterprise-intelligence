@@ -111,8 +111,40 @@ def incident_row(incident: Incident) -> dict:
         "impact_policy_version": incident.impact_policy_version,
         "escalated_from": incident.escalated_from,
         "escalation_reason": incident.escalation_reason,
+        "acknowledged_at": incident.acknowledged_at,
+        "acknowledged_by": incident.acknowledged_by or None,
         "version": incident.version,
     }
+
+
+def to_incident(record: dict) -> Incident:
+    """O inverso exato de `incident_row`. Todo leitor que regrava o incidente usa este.
+
+    Campo esquecido aqui volta como nulo na próxima gravação — o `MERGE` é `UPDATE SET *`.
+    """
+    return Incident(
+        incident_id=record["incident_id"],
+        correlation_key=record["correlation_key"],
+        tenant_id=record["tenant_id"],
+        subject=record.get("subject") or record.get("job_id") or "",
+        type=record["type"],
+        state=record["state"],
+        severity=record["severity"],
+        first_run_id=record["first_run_id"],
+        last_run_id=record["last_run_id"],
+        detected_at=record["detected_at"],
+        updated_at=record["updated_at"],
+        affected_assets=tuple(record.get("affected_assets") or ()),
+        ticket_refs=tuple(record.get("ticket_refs") or ()),
+        declared_consumers=tuple(record.get("declared_consumers") or ()),
+        impact_score=float(record.get("impact_score") or 0.0),
+        impact_policy_version=record.get("impact_policy_version") or "",
+        escalated_from=record.get("escalated_from") or "",
+        escalation_reason=record.get("escalation_reason") or "",
+        acknowledged_at=record.get("acknowledged_at"),
+        acknowledged_by=record.get("acknowledged_by") or "",
+        version=int(record.get("version") or 1),
+    )
 
 
 def timeline_row(entry: TimelineEntry) -> dict:

@@ -62,7 +62,7 @@ def summarize(
         _severity(ativos),
         _mttr(incidents, janela),
         _administrative(incidents, janela),
-        _mtta(),
+        _mtta(incidents, ativos, janela),
         _sla_risk(ativos),
         _impact(ativos),
         _cost(ativos, costs),
@@ -119,11 +119,20 @@ def _administrative(incidents: list[dict], janela: datetime) -> Metric:
     )
 
 
-def _mtta() -> Metric:
+def _mtta(incidents: list[dict], ativos: list[dict], janela: datetime) -> Metric:
+    """Sem reconhecimento, o incidente fica pendente — nunca entra como zero (SPEC-017)."""
+    duracoes = [
+        _hours(item["acknowledged_at"] - item["detected_at"])
+        for item in incidents
+        if item.get("acknowledged_at") and item["detected_at"] >= janela
+    ]
+    pendentes = sum(1 for item in ativos if not item.get("acknowledged_at"))
+    mediana = statistics.median(duracoes) if duracoes else None
     return Metric(
-        "mtta_hours", "MTTA", None, "horas", "7 dias", "—", 0,
-        "acknowledged_at − detected_at", SEM_DADOS,
-        "não medido: o console ainda não registra reconhecimento de incidente",
+        "mtta_hours", "MTTA (mediana)", mediana, "horas", "7 dias",
+        "ops.incidents (acknowledged_at)", len(duracoes), "mediana de acknowledged_at − detected_at",
+        _confidence(len(duracoes)),
+        f"{pendentes} ativo(s) sem reconhecimento" if pendentes else ("" if duracoes else "nenhum reconhecimento"),
     )
 
 

@@ -199,6 +199,8 @@ class Incident:
     impact_policy_version: str = ""
     escalated_from: str = ""
     escalation_reason: str = ""
+    acknowledged_at: datetime | None = None
+    acknowledged_by: str = ""
     version: int = 1
 
     @property

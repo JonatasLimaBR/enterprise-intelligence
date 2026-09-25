@@ -294,6 +294,8 @@ MIGRATIONS = (
     ("ops", "incidents", "ADD COLUMN impact_policy_version STRING"),
     ("ops", "incidents", "ADD COLUMN escalated_from STRING"),
     ("ops", "incidents", "ADD COLUMN escalation_reason STRING"),
+    ("ops", "incidents", "ADD COLUMN acknowledged_at TIMESTAMP"),
+    ("ops", "incidents", "ADD COLUMN acknowledged_by STRING"),
     ("ops", "dlq", "ADD COLUMN error_class STRING"),
     ("ops", "dlq", "ADD COLUMN attempts INT"),
     ("ops", "dlq", "ADD COLUMN first_at TIMESTAMP"),

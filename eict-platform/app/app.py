@@ -8,7 +8,17 @@ from datetime import UTC, datetime
 
 import streamlit as st
 from acceptance import IDENTITY_HEADER, refusal, statements
-from access import ACCEPT_REGIME, REVIEW_HYPOTHESIS, VIEW_AUDIT, authorize, can, load_directory
+from access import (
+    ACCEPT_REGIME,
+    ACKNOWLEDGE_INCIDENT,
+    REVIEW_HYPOTHESIS,
+    VIEW_AUDIT,
+    authorize,
+    can,
+    load_directory,
+)
+from acknowledge import can_acknowledge
+from acknowledge import statements as acknowledge_statements
 from audit import ADULTERADA, BIFURCADA, entry, verify
 from databricks import sql
 from databricks.sdk.core import Config
@@ -327,6 +337,12 @@ def render_connector_health() -> None:
         st.sidebar.caption(f"{icone} {linha['connector']} — {linha['status']}: {linha['detail']}")
 
 
+def acknowledge(incident: dict, email: str) -> None:
+    for statement, parameters in acknowledge_statements(incident, email, datetime.now(UTC), table):
+        execute(statement, parameters)
+    load_incidents.clear()
+
+
 def accept_regime(incident: dict, email: str, reason: str) -> None:
     """Aceita o nível atual como novo normal: regime, incidente fechado e timeline."""
     first = query(
@@ -419,6 +435,13 @@ header[2].metric(
         else None
     ),
 )
+if incident.get("acknowledged_at"):
+    st.caption(f"Reconhecido por {incident['acknowledged_by']} em {incident['acknowledged_at']:%d/%m %H:%M} UTC")
+elif can_acknowledge(incident) and can(directory(), usuario, ACKNOWLEDGE_INCIDENT):
+    if st.button("Reconhecer incidente", key=f"ack-{incident['incident_id']}"):
+        if guarded(ACKNOWLEDGE_INCIDENT, incident["incident_id"], functools.partial(acknowledge, incident, usuario)):
+            st.rerun()
+
 cost = load_cost(incident["last_run_id"])
 header[3].metric(
     "Custo incremental",

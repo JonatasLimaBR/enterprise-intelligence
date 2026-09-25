@@ -32,26 +32,7 @@ def pending_incidents(spark: Any, settings: Settings) -> list[Incident]:
           AND (n.last_narrated IS NULL OR n.last_narrated < i.updated_at)
         """,
     )
-    return [
-        Incident(
-            incident_id=record["incident_id"],
-            correlation_key=record["correlation_key"],
-            tenant_id=record["tenant_id"],
-            subject=record["subject"],
-            type=record["type"],
-            state=record["state"],
-            severity=record["severity"],
-            first_run_id=record["first_run_id"],
-            last_run_id=record["last_run_id"],
-            detected_at=record["detected_at"],
-            updated_at=record["updated_at"],
-            affected_assets=tuple(record.get("affected_assets") or ()),
-            ticket_refs=tuple(record.get("ticket_refs") or ()),
-            declared_consumers=tuple(record.get("declared_consumers") or ()),
-            version=int(record.get("version") or 1),
-        )
-        for record in records
-    ]
+    return [store.to_incident(record) for record in records]
 
 
 def load_hypotheses(spark: Any, settings: Settings, incident_id: str) -> list[Hypothesis]:

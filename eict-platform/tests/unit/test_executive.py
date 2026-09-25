@@ -68,12 +68,24 @@ def test_mttr_fora_da_janela_nao_conta():
     assert m["mttr_hours"].confidence == SEM_DADOS
 
 
-def test_mtta_nao_medido_nunca_zero():
+def test_mtta_sem_reconhecimento_nunca_e_zero():
     m = _metricas([_inc(1)])
 
     assert m["mtta_hours"].value is None
     assert m["mtta_hours"].confidence == SEM_DADOS
-    assert "não medido" in m["mtta_hours"].detail
+    assert "1 ativo(s) sem reconhecimento" in m["mtta_hours"].detail
+
+
+def test_mtta_mediana_dos_reconhecidos_e_pendentes_a_parte():
+    reconhecidos = [
+        _inc(i, acknowledged_at=AGORA - timedelta(hours=3) + timedelta(minutes=m))
+        for i, m in enumerate([15, 30, 45])
+    ]
+    m = _metricas([*reconhecidos, _inc(9)])
+
+    assert m["mtta_hours"].value == 0.5
+    assert m["mtta_hours"].n == 3
+    assert "1 ativo(s) sem reconhecimento" in m["mtta_hours"].detail
 
 
 def test_sla_em_risco():
