@@ -397,6 +397,20 @@ Testes: **505** (14 novos).
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_EXECUTIVE_SUMMARY/SHIPPED_2026-09-24.md`.
 
+### Reconhecimento de incidente (feature EICT_INCIDENT_ACK — ✅ Shipped em 2026-09-24, não publicado)
+
+Botão "Reconhecer incidente" (operador, engenheiro de dados; autorizado e auditado): grava
+`acknowledged_at`/`acknowledged_by` e move `detected → triaged`. O resumo executivo ganha **MTTA
+real**, com os não reconhecidos como pendentes. Testes: **514**.
+
+**Bug pré-existente corrigido:** o loader do correlator não lia `impact_score`, `escalated_from` e
+afins; como o `MERGE` é `UPDATE SET *`, toda regravação (inclusive a auto-resolução) os zerava.
+Agora há um leitor único, `store.to_incident`, e um teste de ida e volta sobre **todos** os campos
+de `Incident`. **Regra:** campo novo em `Incident` exige leitura em `to_incident` — o teste reprova
+se faltar.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_INCIDENT_ACK/SHIPPED_2026-09-24.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
