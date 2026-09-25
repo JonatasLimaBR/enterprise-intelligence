@@ -468,6 +468,25 @@ Primeira feature após a retomada do SDD completo (decisões perguntadas ao dono
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_RUNBOOKS_KNOWLEDGE/SHIPPED_2026-09-24.md`.
 
+### FinOps A — alocação e showback (feature EICT_FINOPS_ALLOCATION — ✅ Shipped em 2026-09-25, não publicado) — Fase 2
+
+| Item | Estado |
+|------|--------|
+| Mapeamento | ✅ `eict-platform/allocation/*.yaml` (BU → domínio → produto → jobs) + `_platform.yaml` (pool) |
+| Precedência | ✅ conflito → YAML → contrato → pool da plataforma → não alocado (com nome); conflito anula só o job disputado |
+| Reconciliação | ✅ contra 2ª consulta sem agrupar; tolerância máx(0,5%, US$ 1); dinheiro em `Decimal` |
+| Preço | ✅ lista **vigente no instante do uso** (`billing_facts` dos incidentes segue com o corrente) |
+| Unidades | ✅ por run, por milhão de linhas, por incidente (dono: operação), por ciclo EICT — fórmula, dono, `n` |
+| Períodos | ✅ mês anterior e corrente em UTC, watermark no corrente; recalculado no máximo 1×/hora |
+| Console | ✅ visão "Custos", visível a todos; cifra sempre com período, moeda e "preço de lista" |
+| Testes | ✅ **642** (55 novos) · ruff limpo · `bundle validate` OK |
+
+**Não validado:** se o billing serverless preenche `job_id`/`app_id`/`warehouse_id`/`dlt_pipeline_id`
+(A2/A3). Campo ausente vira `NULL` e o custo cai em "recurso não identificado" — o 1º ciclo real mede
+a fração. Novos parâmetros do ciclo: `allocation_dir`, `platform_warehouse_id` (= `var.warehouse_id`).
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_FINOPS_ALLOCATION/SHIPPED_2026-09-25.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
