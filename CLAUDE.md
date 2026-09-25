@@ -449,6 +449,25 @@ dos playbooks, métricas do resumo — estão em `.claude/sdd/reports/DECISOES_P
 recomendações 0,5 → 0,7); as outras 22 mantidas sem revisão. **Daqui em diante, SDD completo com os
 skills em toda feature.**
 
+
+### Runbooks e conhecimento (feature EICT_RUNBOOKS_KNOWLEDGE — ✅ Shipped em 2026-09-24, não publicado) — Fase 2
+
+Primeira feature após a retomada do SDD completo (decisões perguntadas ao dono do produto).
+
+| Item | Estado |
+|------|--------|
+| Runbooks | ✅ `eict-platform/runbooks/*.yaml` — 6 convertidos (`aprovado`) + 3 rascunhos (RB-007 semântico, RB-008 motor, RB-009 estrutural) |
+| Aplicabilidade | ✅ tipo + causa/dimensão, com motivo; restrição só vale para a informação que o incidente tem |
+| Semelhantes | ✅ até 5 em 90 dias: mesmo problema · mesma causa em outro ativo · mesmo sintoma |
+| Eficácia | ✅ "Segui o RB-00X" + recuperação em até 24 h; fechar por decisão não conta |
+| Conhecimento | ✅ problema `resolvido` → item ligado ao runbook + sugestão de texto para PR (nada grava YAML) |
+| Read models | ✅ substituídos por inteiro (`store.replace_rows`); uso em `ops.runbook_usage` (dono: App) |
+| Testes | ✅ **587** (44 novos) |
+
+**Pendente:** revisar os 3 rascunhos (trocar `status` por PR) e a verificação real.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_RUNBOOKS_KNOWLEDGE/SHIPPED_2026-09-24.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
