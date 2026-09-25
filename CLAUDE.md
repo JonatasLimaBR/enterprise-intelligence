@@ -430,6 +430,15 @@ colunas novas) → deploy do App → verificação do risco de SLA → conferir 
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_RECOMMENDATIONS/SHIPPED_2026-09-24.md`.
 
+### Gestão de problemas (feature EICT_PROBLEM_MANAGEMENT — ✅ Shipped em 2026-09-24, não publicado) — Fase 2
+
+Assinatura = tipo + ativo + hipótese nº 1 (não descartada). ≥ 3 incidentes em 30 dias ⇒ candidato
+com impacto acumulado; humano promove (owner, prazo, métrica, known error, workaround) e registra a
+correção; o ciclo verifica a eficácia (30 dias sem reincidência ⇒ `resolvido`; reincidiu ⇒
+`ineficaz`). Ciclo grava só `ops.problem_candidates`; o humano, `ops.problem_records`. Testes: **542**.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_PROBLEM_MANAGEMENT/SHIPPED_2026-09-24.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
