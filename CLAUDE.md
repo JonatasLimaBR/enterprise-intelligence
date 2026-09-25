@@ -411,6 +411,25 @@ se faltar.
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_INCIDENT_ACK/SHIPPED_2026-09-24.md`.
 
+### Recomendações read-only (feature EICT_RECOMMENDATIONS — ✅ Shipped em 2026-09-24, não publicado)
+
+Catálogo versionado **verificar → agir** por código de hipótese e por tipo de incidente; hipótese
+nº 1 abaixo de 0,5 ⇒ recomenda **coletar a evidência que falta**; revisão humana manda (descartada
+é ignorada, confirmada dispensa o limiar). Cada recomendação cita hipótese, evidências e base.
+Aceitar/rejeitar no console (autorizado e auditado) em `ops.recommendation_reviews`; taxa de
+aceitas no resumo executivo. Nada é executado pela plataforma. Testes: **527**.
+
+### Estado da Fase 1 (2026-09-24)
+
+Todos os Must estão **no código**. Verificados em produção: conectores, eventos, runtime, comparação
+de runs, correlação com mudanças, contratos, impacto, registry semântico. **Não publicados nem
+verificados** (workspace recusando runs desde 2026-09-24 19:11 UTC): risco de SLA, auditoria/RBAC,
+saúde dos conectores, baseline de custo, resumo executivo, reconhecimento, recomendações.
+ITSM (Jira): código pronto, falta credencial. **Ordem ao liberar:** ciclo (bootstrap cria tabelas e
+colunas novas) → deploy do App → verificação do risco de SLA → conferir resumo executivo.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_RECOMMENDATIONS/SHIPPED_2026-09-24.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
