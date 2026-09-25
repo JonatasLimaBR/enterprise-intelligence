@@ -414,7 +414,7 @@ Arquivo do ciclo: `.claude/sdd/archive/EICT_INCIDENT_ACK/SHIPPED_2026-09-24.md`.
 ### Recomendações read-only (feature EICT_RECOMMENDATIONS — ✅ Shipped em 2026-09-24, não publicado)
 
 Catálogo versionado **verificar → agir** por código de hipótese e por tipo de incidente; hipótese
-nº 1 abaixo de 0,5 ⇒ recomenda **coletar a evidência que falta**; revisão humana manda (descartada
+nº 1 abaixo de **0,7** (validado; era 0,5) ⇒ recomenda **coletar a evidência que falta**; revisão humana manda (descartada
 é ignorada, confirmada dispensa o limiar). Cada recomendação cita hipótese, evidências e base.
 Aceitar/rejeitar no console (autorizado e auditado) em `ops.recommendation_reviews`; taxa de
 aceitas no resumo executivo. Nada é executado pela plataforma. Testes: **527**.
@@ -444,8 +444,10 @@ Arquivo do ciclo: `.claude/sdd/archive/EICT_PROBLEM_MANAGEMENT/SHIPPED_2026-09-2
 De auditoria/RBAC a gestão de problemas, o agente comprimiu o SDD por conta própria (fases fundidas
 ou ausentes, decisões de produto tomadas sem consulta). Os documentos que faltavam foram escritos
 **retroativamente** e marcados como tal. As decisões tomadas sem consulta — limiares, papéis, textos
-dos playbooks, métricas do resumo — estão em `.claude/sdd/reports/DECISOES_PARA_VALIDAR_2026-09-24.md`
-para o dono do produto marcar ✅/✏️/❓. **Daqui em diante, SDD completo com os skills em toda feature.**
+dos playbooks, métricas do resumo — estão em `.claude/sdd/reports/DECISOES_PARA_VALIDAR_2026-09-24.md`.
+**Validação feita em 2026-09-24:** 11 de maior impacto revistas, 10 mantidas e 1 mudada (limiar das
+recomendações 0,5 → 0,7); as outras 22 mantidas sem revisão. **Daqui em diante, SDD completo com os
+skills em toda feature.**
 
 ---
 

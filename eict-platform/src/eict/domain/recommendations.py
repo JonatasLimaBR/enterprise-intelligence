@@ -16,8 +16,8 @@ from dataclasses import dataclass
 
 from eict.domain.models import stable_id
 
-POLICY_VERSION = "recommendations-v1"
-MIN_CONFIDENCE = 0.5
+POLICY_VERSION = "recommendations-v2"  # v2: limiar 0.7
+MIN_CONFIDENCE = 0.7  # validado pelo dono do produto em 2026-09-24 (era 0.5)
 
 VERIFY = "verificar"
 ACT = "agir"

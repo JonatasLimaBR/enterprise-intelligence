@@ -104,3 +104,9 @@ def test_taxa_de_aceitas_ignora_pendentes():
 
 def test_taxa_sem_decisao_e_nao_medida():
     assert acceptance_rate([]) == (None, 0, 0)
+
+
+def test_confianca_de_60_por_cento_ja_nao_basta_para_agir():
+    """Validado pelo dono do produto: agir exige 70%; com 60%, a recomendação é coletar evidência."""
+    assert MIN_CONFIDENCE == 0.7
+    assert [rec.kind for rec in recommend(INCIDENTE, [_hip("code_change", confidence=0.6)])] == [COLLECT]
