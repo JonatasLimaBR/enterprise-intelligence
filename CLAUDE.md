@@ -487,6 +487,25 @@ a fração. Novos parâmetros do ciclo: `allocation_dir`, `platform_warehouse_id
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_FINOPS_ALLOCATION/SHIPPED_2026-09-25.md`.
 
+### FinOps B — otimização e economia (feature EICT_FINOPS_SAVINGS — ✅ Shipped em 2026-09-25, não publicado) — Fase 2
+
+| Item | Estado |
+|------|--------|
+| Detectores | ✅ regressão de custo · execução falhada · warehouse ocioso (`system.query.history`) · schedule fora de prod |
+| Oportunidade | ✅ fórmula, confiança, risco alto/médio/baixo pela lineage (sem ativo ⇒ médio), dono pela alocação |
+| Regras | ✅ limiar em `eict-platform/finops/savings.yaml` (US$ 0,10/mês); abaixo, contado; grupo de exclusão por job+mês |
+| Ciclo de vida | ✅ `finops` aprova/descarta (motivo obrigatório); `engenheiro_dados` implementa; aprovação congela a estimativa |
+| Medição | ✅ por unidade, 14 d antes × 14 d depois, ≥ 5 runs de cada lado; efeito colateral fora do KPI; expira em 60 d |
+| Console | ✅ visão "Economia" (todos veem); 4 KPIs no resumo executivo |
+| Testes | ✅ **705** (63 novos) · ruff limpo · `bundle validate` OK |
+
+**Regra que o build revelou:** lógica que o console executa mora em `app/` (puro e testado) — o App
+não importa `eict`. As transições estão em `app/savings_actions.py`. Novo parâmetro do ciclo:
+`savings_policy`. O usuário da demo tem `finops`; aprovar e implementar pela mesma pessoa sai
+"autoaprovada".
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_FINOPS_SAVINGS/SHIPPED_2026-09-25.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
