@@ -53,6 +53,7 @@ def summarize(
     costs: dict[str, dict],
     connector_health: list[dict],
     now: datetime,
+    recommendation_reviews: list[dict] | tuple = (),
 ) -> list[Metric]:
     """`incidents` e `connector_health` são linhas das tabelas; `costs` é `run_cost` por run."""
     ativos = [item for item in incidents if item["state"] in ACTIVE_STATES]
@@ -67,6 +68,7 @@ def summarize(
         _impact(ativos),
         _cost(ativos, costs),
         _connectors(connector_health),
+        _recommendations(list(recommendation_reviews)),
     ]
 
 
@@ -191,6 +193,18 @@ def _connectors(health: list[dict]) -> Metric:
         "unhealthy_connectors", "Conectores com problema", float(len(ruins)) if health else None,
         "conectores", "último ciclo", "ops.connector_health", len(health),
         "conectores em degradado ou falhando", ALTA if health else SEM_DADOS, detalhe or "sem avaliação",
+    )
+
+
+def _recommendations(reviews: list[dict]) -> Metric:
+    """KPI do PRD-000: taxa de recomendações aceitas, sobre as decididas."""
+    from eict.domain.recommendations import acceptance_rate
+
+    taxa, aceitas, decididas = acceptance_rate(reviews)
+    return Metric(
+        "recommendations_accepted", "Recomendações aceitas", taxa * 100 if taxa is not None else None,
+        "%", "total", "ops.recommendation_reviews", decididas, "aceitas / decididas (pendentes fora)",
+        _confidence(decididas), f"{aceitas} de {decididas}" if decididas else "nenhuma decisão ainda",
     )
 
 

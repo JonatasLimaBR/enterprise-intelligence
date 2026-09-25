@@ -145,5 +145,15 @@ def test_toda_metrica_tem_janela_fonte_formula_e_confianca():
 def test_linhas_para_o_read_model():
     linhas = rows(summarize([_inc(1)], {}, [], AGORA), AGORA)
 
-    assert len(linhas) == 9
+    assert len(linhas) == 10
     assert all(linha["computed_at"] == AGORA and linha["policy_version"] for linha in linhas)
+
+
+def test_taxa_de_recomendacoes_aceitas():
+    m = {
+        item.metric_id: item
+        for item in summarize([], {}, [], AGORA, [{"decision": "accepted"}, {"decision": "rejected"}])
+    }
+
+    assert m["recommendations_accepted"].value == 50.0
+    assert m["recommendations_accepted"].n == 2

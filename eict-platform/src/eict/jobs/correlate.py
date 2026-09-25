@@ -537,6 +537,51 @@ def correlate_quality_incidents(
     return len(touched)
 
 
+def refresh_recommendations(spark: Any, settings: Settings, now: datetime) -> int:
+    """Recomendações dos incidentes ativos. Só insere: a decisão humana mora em outra tabela.
+
+    Regravar a recomendação a cada ciclo apagaria o aceite — é a armadilha do `UPDATE SET *`.
+    O id é estável por incidente, hipótese, tipo e política: a mesma recomendação não duplica.
+    """
+    from eict.domain.recommendations import recommend
+
+    states = ", ".join(f"'{state}'" for state in sorted(ACTIVE_INCIDENT_STATES))
+    incidentes = store.query(
+        spark, f"SELECT * FROM {settings.table('ops', 'incidents')} WHERE state IN ({states})"
+    )
+    hipoteses = store.query(spark, f"SELECT * FROM {settings.table('ops', 'hypotheses')}")
+    revisoes = {
+        record["hypothesis_id"]: record["decision"]
+        for record in sorted(
+            store.query(spark, f"SELECT * FROM {settings.table('ops', 'hypothesis_reviews')}"),
+            key=lambda record: record["at"],
+        )
+    }
+    por_incidente: dict[str, list[dict]] = {}
+    for hipotese in hipoteses:
+        revisada = {**hipotese, "status": revisoes.get(hipotese["hypothesis_id"], hipotese.get("status"))}
+        por_incidente.setdefault(hipotese["incident_id"], []).append(revisada)
+    linhas = [
+        {
+            "recommendation_id": rec.recommendation_id,
+            "incident_id": rec.incident_id,
+            "hypothesis_id": rec.hypothesis_id or None,
+            "kind": rec.kind,
+            "text": rec.text,
+            "basis": rec.basis,
+            "evidence_ids": list(rec.evidence_ids),
+            "owner_role": rec.owner_role,
+            "policy_version": rec.policy_version,
+            "created_at": now,
+        }
+        for incidente in incidentes
+        for rec in recommend(incidente, por_incidente.get(incidente["incident_id"], []))
+    ]
+    if linhas:
+        store.insert_missing(spark, settings.table("ops", "recommendations"), linhas, "recommendation_id")
+    return len(linhas)
+
+
 def refresh_executive_summary(spark: Any, settings: Settings, now: datetime) -> int:
     """Read model do DASH-01, recalculado ao fim do correlate: reflete o ciclo inteiro."""
     from eict.domain import executive
@@ -551,7 +596,12 @@ def refresh_executive_summary(spark: Any, settings: Settings, now: datetime) -> 
     except Exception as exc:
         logger.info("saúde dos conectores indisponível para o resumo: %s", exc)
         saude = []
-    linhas = executive.rows(executive.summarize(incidentes, custos, saude, now), now)
+    try:
+        decisoes = store.query(spark, f"SELECT * FROM {settings.table('ops', 'recommendation_reviews')}")
+    except Exception as exc:
+        logger.info("decisões sobre recomendações indisponíveis: %s", exc)
+        decisoes = []
+    linhas = executive.rows(executive.summarize(incidentes, custos, saude, now, decisoes), now)
     store.merge_rows(spark, settings.table("ops", "executive_summary"), linhas, ["metric_id"])
     return len(linhas)
 
@@ -618,6 +668,10 @@ def main(argv: list[str] | None = None) -> None:
         [item.run for item in features],
         regimes,
     )
+    try:
+        refresh_recommendations(spark, settings, now)
+    except Exception as exc:
+        logger.warning("recomendações não geradas neste ciclo: %s", exc)
     try:
         refresh_executive_summary(spark, settings, now)
     except Exception as exc:

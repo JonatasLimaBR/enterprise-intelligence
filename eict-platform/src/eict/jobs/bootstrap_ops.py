@@ -117,6 +117,27 @@ TABLES: dict[tuple[str, str], str] = {
         reviewed_by STRING,
         reviewed_at TIMESTAMP
     """,
+    ("ops", "recommendations"): """
+        recommendation_id STRING NOT NULL,
+        incident_id STRING,
+        hypothesis_id STRING,
+        kind STRING,
+        text STRING,
+        basis STRING,
+        evidence_ids ARRAY<STRING>,
+        owner_role STRING,
+        policy_version STRING,
+        created_at TIMESTAMP
+    """,
+    ("ops", "recommendation_reviews"): """
+        review_id STRING NOT NULL,
+        recommendation_id STRING,
+        incident_id STRING,
+        decision STRING,
+        reviewer STRING,
+        at TIMESTAMP,
+        note STRING
+    """,
     ("ops", "executive_summary"): """
         metric_id STRING NOT NULL,
         label STRING,

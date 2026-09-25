@@ -12,6 +12,7 @@ from access import (
     ACCEPT_REGIME,
     ACKNOWLEDGE_INCIDENT,
     REVIEW_HYPOTHESIS,
+    REVIEW_RECOMMENDATION,
     VIEW_AUDIT,
     authorize,
     can,
@@ -289,6 +290,8 @@ def _valor(metrica: dict) -> str:
         return f"US$ {metrica['value']:,.4f}"
     if metrica["unit"] == "horas":
         return f"{metrica['value']:.1f} h"
+    if metrica["unit"] == "%":
+        return f"{metrica['value']:.0f}%"
     return f"{metrica['value']:.0f}"
 
 
@@ -307,6 +310,7 @@ def render_executive() -> None:
     ordem = [
         "active_incidents", "critical_incidents", "sla_at_risk", "impacted_assets",
         "incremental_cost_usd", "mttr_hours", "mtta_hours", "administrative_closures", "unhealthy_connectors",
+        "recommendations_accepted",
     ]
     por_id = {metrica["metric_id"]: metrica for metrica in metricas}
     colunas = st.columns(3)
@@ -335,6 +339,66 @@ def render_connector_health() -> None:
     for linha in linhas:
         icone = SAUDE_ICONE.get(linha["status"], "⚪")
         st.sidebar.caption(f"{icone} {linha['connector']} — {linha['status']}: {linha['detail']}")
+
+
+def load_recommendations(incident_id: str) -> list[dict]:
+    try:
+        return query(
+            f"SELECT r.*, d.decision, d.reviewer FROM {table('ops', 'recommendations')} r "
+            f"LEFT JOIN (SELECT recommendation_id, max_by(decision, at) AS decision, max_by(reviewer, at) AS reviewer "
+            f"FROM {table('ops', 'recommendation_reviews')} GROUP BY recommendation_id) d "
+            "ON d.recommendation_id = r.recommendation_id "
+            "WHERE r.incident_id = :incident_id ORDER BY r.created_at DESC, r.kind",
+            {"incident_id": incident_id},
+        )
+    except Exception:
+        return []
+
+
+def save_recommendation_review(recommendation: dict, decision: str, reviewer: str) -> None:
+    execute(
+        f"INSERT INTO {table('ops', 'recommendation_reviews')} "
+        "(review_id, recommendation_id, incident_id, decision, reviewer, at, note) "
+        "VALUES (:review_id, :recommendation_id, :incident_id, :decision, :reviewer, :at, NULL)",
+        {
+            "review_id": str(uuid.uuid4()),
+            "recommendation_id": recommendation["recommendation_id"],
+            "incident_id": recommendation["incident_id"],
+            "decision": decision,
+            "reviewer": reviewer,
+            "at": datetime.now(UTC),
+        },
+    )
+
+
+ROTULO_RECOMENDACAO = {"verificar": "Verificar", "agir": "Agir", "coletar_evidencia": "Coletar evidência"}
+
+
+def render_recommendations(incident: dict) -> None:
+    """Read-only: a plataforma recomenda, uma pessoa decide e executa."""
+    recomendacoes = load_recommendations(incident["incident_id"])
+    st.subheader("Recomendações")
+    if not recomendacoes:
+        st.caption("Nenhuma recomendação para este incidente.")
+        return
+    st.caption("Nada aqui é executado pela plataforma. Aceitar registra a decisão; a ação é sua.")
+    pode = can(directory(), usuario, REVIEW_RECOMMENDATION)
+    for rec in recomendacoes:
+        rotulo = ROTULO_RECOMENDACAO.get(rec["kind"], rec["kind"])
+        st.markdown(f"**{rotulo}** — {rec['text']}")
+        evidencias = ", ".join(rec.get("evidence_ids") or []) or "—"
+        st.caption(f"base: {rec['basis']} · evidências: {evidencias} · responsável: {rec['owner_role']}")
+        if rec.get("decision"):
+            st.caption(f"{rec['decision']} por {rec['reviewer']}")
+            continue
+        if not pode:
+            continue
+        colunas = st.columns(2)
+        for coluna, texto, decisao in ((colunas[0], "Aceitar", "accepted"), (colunas[1], "Rejeitar", "rejected")):
+            if coluna.button(texto, key=f"rec-{decisao}-{rec['recommendation_id']}"):
+                gravar = functools.partial(save_recommendation_review, rec, decisao, usuario)
+                if guarded(REVIEW_RECOMMENDATION, rec["recommendation_id"], gravar):
+                    st.rerun()
 
 
 def acknowledge(incident: dict, email: str) -> None:
@@ -520,6 +584,8 @@ for hypothesis in load_hypotheses(incident["incident_id"]):
                 )
                 if guarded(REVIEW_HYPOTHESIS, hyp_id, gravar):
                     st.rerun()
+
+render_recommendations(incident)
 
 st.subheader("Impacto")
 descobertos = list(incident.get("affected_assets") or [])

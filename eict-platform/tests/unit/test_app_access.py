@@ -110,3 +110,11 @@ def test_arquivo_do_repositorio_e_valido():
 
     assert diretorio.error == ""
     assert diretorio.by_email
+
+
+def test_quem_decide_recomendacoes():
+    from access import REVIEW_RECOMMENDATION
+
+    assert authorize(DIRETORIO, "ana@exemplo.com", REVIEW_RECOMMENDATION).allowed       # operador
+    assert authorize(DIRETORIO, "duda@exemplo.com", REVIEW_RECOMMENDATION).allowed      # data_steward
+    assert not authorize(DIRETORIO, "caio@exemplo.com", REVIEW_RECOMMENDATION).allowed  # auditor só lê
