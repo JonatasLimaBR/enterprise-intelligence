@@ -54,6 +54,7 @@ def summarize(
     connector_health: list[dict],
     now: datetime,
     recommendation_reviews: list[dict] | tuple = (),
+    savings: tuple[list[dict], list[dict], list[dict]] | None = None,
 ) -> list[Metric]:
     """`incidents` e `connector_health` são linhas das tabelas; `costs` é `run_cost` por run."""
     ativos = [item for item in incidents if item["state"] in ACTIVE_STATES]
@@ -69,6 +70,7 @@ def summarize(
         _cost(ativos, costs),
         _connectors(connector_health),
         _recommendations(list(recommendation_reviews)),
+        *(_savings(*savings, now) if savings is not None else ()),
     ]
 
 
@@ -206,6 +208,60 @@ def _recommendations(reviews: list[dict]) -> Metric:
         "%", "total", "ops.recommendation_reviews", decididas, "aceitas / decididas (pendentes fora)",
         _confidence(decididas), f"{aceitas} de {decididas}" if decididas else "nenhuma decisão ainda",
     )
+
+
+def _savings(
+    opportunities: list[dict], initiatives: list[dict], realization: list[dict], now: datetime
+) -> list[Metric]:
+    """Funil de economia do mês. Potencial não é realizado: só `realizada` soma no realizado."""
+    mes = now.strftime("%Y-%m")
+    identificadas = [
+        item for item in opportunities if item.get("status") == "identificada" and item.get("counted")
+    ]
+    aprovadas = [
+        item for item in initiatives
+        if item.get("approved_at") is not None and item["approved_at"].strftime("%Y-%m") == mes
+    ]
+    realizadas = [item for item in realization if item.get("state") == "realizada"]
+    decididas = [
+        item for item in realization
+        if item.get("state") in ("realizada", "nao_realizada", "expirada", "realizada_com_efeito_colateral")
+    ]
+
+    def soma(linhas: list[dict], campo: str) -> float | None:
+        valores = [float(item[campo]) for item in linhas if item.get(campo) is not None]
+        return sum(valores) if valores else None
+
+    realizado = [
+        {**item, "valor": item.get("net_usd") if item.get("net_usd") is not None else item.get("gross_usd")}
+        for item in realizadas
+    ]
+    return [
+        Metric(
+            "savings_identified_usd", "Economia identificada (mensal)", soma(identificadas, "estimate_usd"), "US$",
+            mes, "ops.savings_opportunities", len(identificadas),
+            "Σ estimativa mensal das oportunidades identificadas contadas (grupo de exclusão aplicado)",
+            _confidence(len(identificadas)), "potencial — não é economia realizada",
+        ),
+        Metric(
+            "savings_approved_usd", "Economia aprovada no mês", soma(aprovadas, "estimate_usd"), "US$", mes,
+            "ops.savings_initiatives", len(aprovadas), "Σ estimativa congelada das iniciativas aprovadas no mês",
+            _confidence(len(aprovadas)),
+        ),
+        Metric(
+            "savings_realized_usd", "Economia realizada (mensal)", soma(realizado, "valor"), "US$", "total",
+            "ops.savings_realization", len(realizadas),
+            "Σ líquida (ou bruta, sem custo de implementação) das iniciativas realizadas; efeito colateral fora",
+            _confidence(len(realizadas)),
+        ),
+        Metric(
+            "savings_realization_rate", "Taxa de realização",
+            len(realizadas) / len(decididas) * 100 if decididas else None, "%", "total", "ops.savings_realization",
+            len(decididas), "realizadas / medidas com desfecho (em medição e amostra insuficiente fora)",
+            _confidence(len(decididas)),
+            f"{len(realizadas)} de {len(decididas)}" if decididas else "nenhuma iniciativa medida ainda",
+        ),
+    ]
 
 
 def rows(metrics: list[Metric], computed_at: datetime) -> list[dict]:

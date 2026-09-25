@@ -11,7 +11,10 @@ from acceptance import IDENTITY_HEADER, refusal, statements
 from access import (
     ACCEPT_REGIME,
     ACKNOWLEDGE_INCIDENT,
+    APPROVE_SAVING,
+    DISCARD_SAVING,
     FOLLOW_RUNBOOK,
+    IMPLEMENT_SAVING,
     MANAGE_PROBLEM,
     REVIEW_HYPOTHESIS,
     REVIEW_RECOMMENDATION,
@@ -26,6 +29,10 @@ from audit import ADULTERADA, BIFURCADA, entry, verify
 from databricks import sql
 from databricks.sdk.core import Config
 from money import fmt_money, fmt_share
+from savings_actions import SavingsActionError
+from savings_actions import approve as approve_statements
+from savings_actions import discard as discard_statements
+from savings_actions import implement as implement_statements
 
 CATALOG = os.getenv("EICT_CATALOG", "workspace")
 SCHEMA_PREFIX = os.getenv("EICT_SCHEMA_PREFIX", "eict_")
@@ -313,7 +320,8 @@ def render_executive() -> None:
     ordem = [
         "active_incidents", "critical_incidents", "sla_at_risk", "impacted_assets",
         "incremental_cost_usd", "mttr_hours", "mtta_hours", "administrative_closures", "unhealthy_connectors",
-        "recommendations_accepted",
+        "recommendations_accepted", "savings_identified_usd", "savings_approved_usd", "savings_realized_usd",
+        "savings_realization_rate",
     ]
     por_id = {metrica["metric_id"]: metrica for metrica in metricas}
     colunas = st.columns(3)
@@ -688,6 +696,157 @@ def render_costs() -> None:
             st.warning(f"{regra['source_file']} · {regra['status']} · {regra['job_name']} {regra['detail']}".strip())
 
 
+FONTE_ECONOMIA = {
+    "regressao_custo": "Regressão de custo",
+    "execucao_falhada": "Execução falhada",
+    "schedule_fora_prod": "Schedule fora de prod",
+    "warehouse_ocioso": "Warehouse ocioso",
+}
+ESTADO_ECONOMIA = {
+    "em_medicao": "🟡 em medição",
+    "realizada": "🟢 realizada",
+    "nao_realizada": "🔴 não realizada",
+    "amostra_insuficiente": "⏳ amostra insuficiente",
+    "expirada": "⛔ expirada",
+    "realizada_com_efeito_colateral": "🟠 realizada com efeito colateral (fora do KPI)",
+}
+
+
+def _run_savings_action(statements) -> None:
+    for statement, parameters in statements:
+        execute(statement, parameters)
+
+
+def _savings_action(action: str, target: str, build) -> None:
+    """Valida a transição antes de autorizar: transição inválida não chega à trilha nem à tabela."""
+    try:
+        statements = build()
+    except SavingsActionError as exc:
+        st.error(str(exc))
+        return
+    if guarded(action, target, functools.partial(_run_savings_action, statements)):
+        st.rerun()
+
+
+def _estimativa(item: dict) -> str:
+    texto = fmt_money(item["estimate_usd"], item["currency"], item["period_label"], item["price_basis"])
+    if item["estimate_low"] != item["estimate_high"]:
+        texto += f" (faixa {float(item['estimate_low']):,.4f}–{float(item['estimate_high']):,.4f}, n={item['n']})"
+    return texto + (" · histórico curto" if item["short_history"] else "")
+
+
+def _detector_text(item: dict) -> str:
+    nome = FONTE_ECONOMIA.get(item["source"], item["source"])
+    if item["status"] == "nao_avaliado":
+        return f"{nome}: não avaliado — {item['reason']}"
+    return f"{nome}: {item['opportunity_count']} oportunidade(s), {item['below_threshold']} abaixo do limiar"
+
+
+def render_opportunity(item: dict) -> None:
+    marca = "" if item["counted"] else " · contida em outra do mesmo job (não soma)"
+    if item["status"] == "em_iniciativa":
+        marca = " · em andamento numa iniciativa (não soma)"
+    fonte = FONTE_ECONOMIA.get(item["source"], item["source"])
+    with st.expander(f"{fonte} · {item['subject_name']} · {_estimativa(item)}{marca}"):
+        confianca = f"{item['confidence']:.2f}" if item["confidence"] is not None else item["confidence_label"]
+        st.markdown(f"**Recomendação:** {item['recommendation']}")
+        st.caption(
+            f"Fórmula: {item['formula']} · confiança {confianca} · risco **{item['risk']}**: {item['risk_reason']}"
+        )
+        st.caption(
+            f"Dono: {item['owner'] or '—'}"
+            + (f" · {item['note']}" if item["note"] else "")
+            + (f" · hipótese {item['hypothesis_code']}" if item["hypothesis_code"] else "")
+            + f" · evidências: {', '.join(item['evidence'] or [])}"
+        )
+        if item["status"] != "identificada":
+            return
+        chave = item["opportunity_id"]
+        if can(directory(), usuario, APPROVE_SAVING) and st.button("Aprovar", key=f"apv-{chave}"):
+            _savings_action(
+                APPROVE_SAVING, chave, lambda: approve_statements(item, usuario, datetime.now(UTC), table)
+            )
+        if can(directory(), usuario, DISCARD_SAVING):
+            motivo = st.text_input("Motivo do descarte", key=f"mot-{chave}")
+            if st.button("Descartar", key=f"dsc-{chave}"):
+                _savings_action(
+                    DISCARD_SAVING, chave,
+                    lambda: discard_statements(item, usuario, motivo, datetime.now(UTC), table),
+                )
+
+
+def render_initiative(item: dict) -> None:
+    estado = ESTADO_ECONOMIA.get(item["measured_state"], item["state"])
+    auto = " · ⚠️ autoaprovada" if item["self_approved"] else ""
+    fonte = FONTE_ECONOMIA.get(item["source"], item["source"])
+    with st.expander(f"{fonte} · {item['subject']} · {estado}{auto}"):
+        st.caption(
+            f"Aprovada por {item['approved_by']} em {item['approved_at']:%d/%m %H:%M} UTC · estimativa congelada "
+            f"US$ {float(item['estimate_usd']):,.4f}/mês · {item['formula']}"
+        )
+        if item["state"] == "implementada":
+            st.caption(
+                f"Implementada por {item['implemented_by']} em {item['implemented_at']:%d/%m %H:%M} UTC · "
+                f"{item['change_ref']}"
+            )
+            if item["measured_state"] in ("realizada", "nao_realizada", "realizada_com_efeito_colateral"):
+                valor = item["net_usd"] if item["net_usd"] is not None else item["gross_usd"]
+                st.metric(
+                    "Economia medida (mensal)", f"US$ {float(valor):,.4f}",
+                    help=f"{item['measured_unit']}: {item['baseline_median']} → {item['after_median']} "
+                    f"(n={item['n_before']} antes, {item['n_after']} depois)",
+                )
+            if item.get("measured_reason"):
+                st.caption(item["measured_reason"])
+            return
+        if not can(directory(), usuario, IMPLEMENT_SAVING):
+            return
+        chave = item["initiative_id"]
+        referencia = st.text_input("Commit ou link do PR", key=f"ref-{chave}")
+        custo = st.number_input("Custo da implementação (US$, opcional)", min_value=0.0, value=0.0, key=f"cst-{chave}")
+        if st.button("Registrar implementação", key=f"imp-{chave}"):
+            _savings_action(
+                IMPLEMENT_SAVING, chave,
+                lambda: implement_statements(item, usuario, referencia, custo or None, datetime.now(UTC), table),
+            )
+
+
+def render_savings() -> None:
+    """PRD-070 F6/F7: o ciclo propõe e mede; a pessoa aprova, descarta ou registra a implementação."""
+    st.title("Economia")
+    st.caption("Economia potencial não é economia realizada. Nada é alterado pela plataforma.")
+    detectores = _safe_query(f"SELECT * FROM {table('ops', 'savings_detectors')} ORDER BY source")
+    if not detectores:
+        st.info("As oportunidades são calculadas pelo ciclo, no máximo uma vez por hora; aguardando o primeiro.")
+        return
+    if detectores[0].get("config_error"):
+        st.warning(f"Política recusada, usando os padrões: {detectores[0]['config_error']}")
+    st.caption(
+        " · ".join(_detector_text(item) for item in detectores)
+        + f" · calculado em {detectores[0]['computed_at']:%d/%m %H:%M} UTC"
+    )
+    oportunidades = _safe_query(
+        f"SELECT * FROM {table('ops', 'savings_opportunities')} ORDER BY counted DESC, estimate_usd DESC"
+    )
+    st.subheader("Oportunidades")
+    if not oportunidades:
+        st.caption("Nenhuma oportunidade acima do limiar.")
+    for item in oportunidades:
+        render_opportunity(item)
+    iniciativas = _safe_query(
+        "SELECT i.*, r.state AS measured_state, r.gross_usd, r.net_usd, r.unit AS measured_unit, "
+        "r.baseline_median, r.after_median, r.n_before, r.n_after, r.reason AS measured_reason "
+        f"FROM {table('ops', 'savings_initiatives')} i "
+        f"LEFT JOIN {table('ops', 'savings_realization')} r ON i.initiative_id = r.initiative_id "
+        "WHERE i.state <> 'descartada' ORDER BY i.approved_at DESC"
+    )
+    st.subheader("Iniciativas")
+    if not iniciativas:
+        st.caption("Nenhuma iniciativa aprovada ainda.")
+    for item in iniciativas:
+        render_initiative(item)
+
+
 def render_recommendations(incident: dict) -> None:
     """Read-only: a plataforma recomenda, uma pessoa decide e executa."""
     recomendacoes = load_recommendations(incident["incident_id"])
@@ -780,7 +939,7 @@ st.sidebar.caption(
 if directory().error:
     st.sidebar.warning(directory().error)
 render_connector_health()
-visoes = ["Resumo executivo", "Incidentes", "Problemas", "Runbooks", "Custos"] + (
+visoes = ["Resumo executivo", "Incidentes", "Problemas", "Runbooks", "Custos", "Economia"] + (
     ["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else []
 )
 visao = st.sidebar.radio("Visão", visoes)
@@ -792,6 +951,9 @@ if visao == "Runbooks":
     st.stop()
 if visao == "Custos":
     render_costs()
+    st.stop()
+if visao == "Economia":
+    render_savings()
     st.stop()
 if visao == "Resumo executivo":
     render_executive()

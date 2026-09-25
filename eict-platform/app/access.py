@@ -18,7 +18,8 @@ OPERADOR = "operador"
 ENGENHEIRO_DADOS = "engenheiro_dados"
 DATA_STEWARD = "data_steward"
 AUDITOR = "auditor"
-ROLES = frozenset({OPERADOR, ENGENHEIRO_DADOS, DATA_STEWARD, AUDITOR})
+FINOPS = "finops"
+ROLES = frozenset({OPERADOR, ENGENHEIRO_DADOS, DATA_STEWARD, AUDITOR, FINOPS})
 
 REVIEW_HYPOTHESIS = "review_hypothesis"
 ACCEPT_REGIME = "accept_regime"
@@ -27,6 +28,9 @@ ACKNOWLEDGE_INCIDENT = "acknowledge_incident"
 REVIEW_RECOMMENDATION = "review_recommendation"
 MANAGE_PROBLEM = "manage_problem"
 FOLLOW_RUNBOOK = "follow_runbook"
+APPROVE_SAVING = "approve_saving"
+DISCARD_SAVING = "discard_saving"
+IMPLEMENT_SAVING = "implement_saving"
 
 PERMISSIONS: dict[str, frozenset[str]] = {
     REVIEW_HYPOTHESIS: frozenset({OPERADOR, ENGENHEIRO_DADOS}),
@@ -35,6 +39,10 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     REVIEW_RECOMMENDATION: frozenset({OPERADOR, ENGENHEIRO_DADOS, DATA_STEWARD}),
     MANAGE_PROBLEM: frozenset({ENGENHEIRO_DADOS, DATA_STEWARD}),
     FOLLOW_RUNBOOK: frozenset({OPERADOR, ENGENHEIRO_DADOS}),
+    # Economia: a decisão financeira é de FinOps; a mudança técnica, de quem cuida do job.
+    APPROVE_SAVING: frozenset({FINOPS}),
+    DISCARD_SAVING: frozenset({FINOPS}),
+    IMPLEMENT_SAVING: frozenset({ENGENHEIRO_DADOS}),
     # Segregação: quem audita lê a trilha e não age; quem age não lê a trilha.
     VIEW_AUDIT: frozenset({DATA_STEWARD, AUDITOR}),
 }

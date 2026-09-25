@@ -1,0 +1,9 @@
+# Política das oportunidades de economia (FinOps B). Muda por PR.
+# Arquivo inválido: o ciclo usa os defaults do código (iguais a estes) e mostra a recusa no console.
+policy_version: savings-v1
+threshold_usd_month: 0.10     # abaixo disso, conta em "abaixo do limiar" — nunca some
+estimate_window_days: 30      # runs/mês = runs dos últimos 30 dias
+min_runs: 5                   # n < 5 ⇒ faixa na estimativa; medição exige 5 de cada lado
+measure_days: 14              # janela antes e depois da implementação
+expiry_days: 60               # amostra insuficiente vira expirada
+non_prod_targets: [dev, staging]

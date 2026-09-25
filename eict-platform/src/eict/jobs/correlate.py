@@ -631,7 +631,15 @@ def refresh_executive_summary(spark: Any, settings: Settings, now: datetime) -> 
     except Exception as exc:
         logger.info("decisões sobre recomendações indisponíveis: %s", exc)
         decisoes = []
-    linhas = executive.rows(executive.summarize(incidentes, custos, saude, now, decisoes), now)
+    try:
+        economia = tuple(
+            store.query(spark, f"SELECT * FROM {settings.table('ops', tabela)}")
+            for tabela in ("savings_opportunities", "savings_initiatives", "savings_realization")
+        )
+    except Exception as exc:
+        logger.info("economia indisponível para o resumo: %s", exc)
+        economia = None
+    linhas = executive.rows(executive.summarize(incidentes, custos, saude, now, decisoes, economia), now)
     store.merge_rows(spark, settings.table("ops", "executive_summary"), linhas, ["metric_id"])
     return len(linhas)
 
@@ -718,6 +726,12 @@ def main(argv: list[str] | None = None) -> None:
         finops.refresh(spark, settings, now)
     except Exception as exc:
         logger.warning("showback de custos não atualizado neste ciclo: %s", exc)
+    try:
+        from eict.jobs import savings
+
+        savings.refresh(spark, settings, now)
+    except Exception as exc:
+        logger.warning("oportunidades de economia não atualizadas neste ciclo: %s", exc)
     try:
         refresh_executive_summary(spark, settings, now)
     except Exception as exc:

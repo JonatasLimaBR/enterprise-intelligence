@@ -7,6 +7,7 @@ from typing import Any
 BILLING_USAGE = "system.billing.usage"
 BILLING_PRICES = "system.billing.list_prices"
 TABLE_LINEAGE = "system.access.table_lineage"
+QUERY_HISTORY = "system.query.history"
 
 AVAILABLE = "available"
 NOT_AVAILABLE = "not_available"
@@ -47,6 +48,7 @@ def discover(spark: Any, landing_dir: str) -> list[Capability]:
         probe_table(spark, BILLING_USAGE),
         probe_table(spark, BILLING_PRICES),
         probe_table(spark, TABLE_LINEAGE),
+        probe_table(spark, QUERY_HISTORY),
         probe_volume(spark, landing_dir),
     ]
 

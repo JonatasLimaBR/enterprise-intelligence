@@ -63,6 +63,19 @@ def run_results(client: Any, job_ids: list[str], since_ms: int) -> dict[str, boo
     return resultados
 
 
+def job_schedules(client: Any) -> list[tuple[str, str, bool]]:
+    """(job_id, nome, pausado) de todo job com schedule. Sem schedule, não há o que pausar."""
+    resultado = []
+    for job in client.jobs.list():
+        settings = job.settings
+        schedule = getattr(settings, "schedule", None)
+        if schedule is None:
+            continue
+        pausa = _enum_value(getattr(schedule, "pause_status", None))
+        resultado.append((str(job.job_id), getattr(settings, "name", "") or "", pausa == "PAUSED"))
+    return resultado
+
+
 def environment_hash(settings: Any) -> str:
     environments = getattr(settings, "environments", None) or []
     spec = [

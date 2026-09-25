@@ -102,3 +102,45 @@ def period_total(spark: Any, start: datetime, end: datetime, workspace_id: str) 
         currencies=tuple(sorted(linha.get("currencies") or ())),
         watermark=linha.get("watermark"),
     )
+
+
+def _ids(values: list[str]) -> str:
+    """Só ids numéricos entram no SQL: vêm do billing e do SDK, mas a regra não depende disso."""
+    return ", ".join(f"'{value}'" for value in sorted(set(values)) if value.isdigit())
+
+
+def job_daily_sql(job_ids: list[str], start: datetime, end: datetime, workspace_id: str) -> str:
+    return f"""
+    SELECT CAST(u.usage_metadata.job_id AS STRING) AS job_id,
+           CAST(u.usage_start_time AS DATE) AS day,
+           SUM(u.usage_quantity * p.pricing.default) AS cost,
+           COUNT(DISTINCT u.usage_metadata.job_run_id) AS runs
+    FROM {capability_probe.BILLING_USAGE} u
+    {PRICE_JOIN}
+    WHERE {_scope(start, end, workspace_id)}
+      AND u.usage_metadata.job_id IN ({_ids(job_ids)})
+    GROUP BY ALL
+    """
+
+
+def warehouse_hours_sql(start: datetime, end: datetime, workspace_id: str) -> str:
+    return f"""
+    SELECT CAST(u.usage_metadata.warehouse_id AS STRING) AS warehouse_id,
+           DATE_TRUNC('HOUR', u.usage_start_time) AS hour,
+           SUM(u.usage_quantity * p.pricing.default) AS cost
+    FROM {capability_probe.BILLING_USAGE} u
+    {PRICE_JOIN}
+    WHERE {_scope(start, end, workspace_id)}
+      AND u.usage_metadata.warehouse_id IS NOT NULL
+    GROUP BY ALL
+    """
+
+
+def job_daily_costs(spark: Any, job_ids: list[str], start: datetime, end: datetime, workspace_id: str) -> list[dict]:
+    if not _ids(job_ids):
+        return []
+    return store.query(spark, job_daily_sql(job_ids, start, end, workspace_id))
+
+
+def warehouse_hours(spark: Any, start: datetime, end: datetime, workspace_id: str) -> list[dict]:
+    return store.query(spark, warehouse_hours_sql(start, end, workspace_id))

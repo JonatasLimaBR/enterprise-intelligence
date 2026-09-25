@@ -41,6 +41,8 @@ resources:
           default: ${workspace.file_path}/allocation
         - name: platform_warehouse_id
           default: ${var.warehouse_id}
+        - name: savings_policy
+          default: ${workspace.file_path}/finops/savings.yaml
       environments:
         - environment_key: default
           spec:
@@ -72,4 +74,5 @@ resources:
               - "--runbooks-dir={{job.parameters.runbooks_dir}}"
               - "--allocation-dir={{job.parameters.allocation_dir}}"
               - "--platform-warehouse-id={{job.parameters.platform_warehouse_id}}"
+              - "--savings-policy={{job.parameters.savings_policy}}"
               - "--pipeline-id=${resources.pipelines.medallion.id}"

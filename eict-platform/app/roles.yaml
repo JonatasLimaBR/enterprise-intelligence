@@ -1,8 +1,9 @@
 # Papéis de quem usa o console. Mudança de acesso passa por PR — este arquivo é a trilha de quem
-# pode o quê. Fora daqui, só leitura. Papéis: operador, engenheiro_dados, data_steward, auditor.
+# pode o quê. Fora daqui, só leitura. Papéis: operador, engenheiro_dados, data_steward, auditor, finops.
 #
 # A identidade é a que o Databricks Apps encaminha (X-Forwarded-Email), nunca um campo digitado.
 users:
-  # Usuário do workspace da demo. Acumula engenheiro_dados e auditor de propósito, para a
-  # apresentação mostrar as duas visões; num ambiente real, a segregação separaria as pessoas.
-  creatorhubmedia01@gmail.com: [engenheiro_dados, auditor]
+  # Usuário do workspace da demo. Acumula engenheiro_dados, auditor e finops de propósito, para a
+  # apresentação mostrar as visões e o ciclo de economia inteiro; num ambiente real, a segregação
+  # separaria as pessoas — e a iniciativa aprovada e implementada pela mesma pessoa sai "autoaprovada".
+  creatorhubmedia01@gmail.com: [engenheiro_dados, auditor, finops]

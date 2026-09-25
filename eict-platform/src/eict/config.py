@@ -29,6 +29,7 @@ class Settings:
     allocation_dir: str = ""
     pipeline_id: str = ""
     platform_warehouse_id: str = ""
+    savings_policy: str = ""
 
     @property
     def excluded_assets(self) -> tuple[str, ...]:
@@ -67,6 +68,7 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
     parser.add_argument("--allocation-dir", default="")
     parser.add_argument("--pipeline-id", default="")
     parser.add_argument("--platform-warehouse-id", default="")
+    parser.add_argument("--savings-policy", default="")
     known, _ = parser.parse_known_args(argv)
     return Settings(
         catalog=known.catalog,
@@ -88,4 +90,5 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
         allocation_dir=known.allocation_dir,
         pipeline_id=known.pipeline_id,
         platform_warehouse_id=known.platform_warehouse_id,
+        savings_policy=known.savings_policy,
     )
