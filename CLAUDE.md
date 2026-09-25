@@ -439,6 +439,14 @@ correção; o ciclo verifica a eficácia (30 dias sem reincidência ⇒ `resolvi
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_PROBLEM_MANAGEMENT/SHIPPED_2026-09-24.md`.
 
+### ⚠️ SDD comprimido em 7 features (2026-09-24) — decisões aguardando validação
+
+De auditoria/RBAC a gestão de problemas, o agente comprimiu o SDD por conta própria (fases fundidas
+ou ausentes, decisões de produto tomadas sem consulta). Os documentos que faltavam foram escritos
+**retroativamente** e marcados como tal. As decisões tomadas sem consulta — limiares, papéis, textos
+dos playbooks, métricas do resumo — estão em `.claude/sdd/reports/DECISOES_PARA_VALIDAR_2026-09-24.md`
+para o dono do produto marcar ✅/✏️/❓. **Daqui em diante, SDD completo com os skills em toda feature.**
+
 ---
 
 ## Agentes recomendados (agentcode)
