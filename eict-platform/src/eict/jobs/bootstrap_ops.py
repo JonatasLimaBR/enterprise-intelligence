@@ -117,6 +117,38 @@ TABLES: dict[tuple[str, str], str] = {
         reviewed_by STRING,
         reviewed_at TIMESTAMP
     """,
+    # Gestão de problemas: cada tabela tem um só dono. O ciclo recalcula os candidatos; o registro
+    # humano (owner, correção) o ciclo nunca escreve — o MERGE com UPDATE SET * o apagaria.
+    ("ops", "problem_candidates"): """
+        problem_id STRING NOT NULL,
+        signature STRING,
+        type STRING,
+        subject STRING,
+        cause STRING,
+        incident_ids ARRAY<STRING>,
+        incident_count INT,
+        first_detected_at TIMESTAMP,
+        last_detected_at TIMESTAMP,
+        impact_score_sum DOUBLE,
+        open_hours DOUBLE,
+        status STRING,
+        efficacy_detail STRING,
+        policy_version STRING,
+        evaluated_at TIMESTAMP
+    """,
+    ("ops", "problem_records"): """
+        problem_id STRING NOT NULL,
+        signature STRING,
+        owner STRING,
+        due_at TIMESTAMP,
+        success_metric STRING,
+        known_error STRING,
+        workaround STRING,
+        fix_description STRING,
+        fix_at TIMESTAMP,
+        promoted_by STRING,
+        promoted_at TIMESTAMP
+    """,
     ("ops", "recommendations"): """
         recommendation_id STRING NOT NULL,
         incident_id STRING,

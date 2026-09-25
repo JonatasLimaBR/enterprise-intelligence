@@ -11,6 +11,7 @@ from acceptance import IDENTITY_HEADER, refusal, statements
 from access import (
     ACCEPT_REGIME,
     ACKNOWLEDGE_INCIDENT,
+    MANAGE_PROBLEM,
     REVIEW_HYPOTHESIS,
     REVIEW_RECOMMENDATION,
     VIEW_AUDIT,
@@ -325,6 +326,104 @@ def render_executive() -> None:
             )
 
 
+ESTADO_PROBLEMA = {
+    "candidato": "🟠 candidato",
+    "aberto": "🔴 aberto",
+    "em_observacao": "🟡 em observação",
+    "resolvido": "🟢 resolvido",
+    "ineficaz": "⛔ correção ineficaz",
+}
+
+
+def promote_problem(candidate: dict, owner: str, due_at, metric: str, known_error: str, workaround: str) -> None:
+    execute(
+        f"MERGE INTO {table('ops', 'problem_records')} t "
+        "USING (SELECT :problem_id AS problem_id) s ON t.problem_id = s.problem_id "
+        "WHEN NOT MATCHED THEN INSERT (problem_id, signature, owner, due_at, success_metric, known_error, "
+        "workaround, fix_description, fix_at, promoted_by, promoted_at) VALUES (:problem_id, :signature, :owner, "
+        ":due_at, :metric, :known_error, :workaround, NULL, NULL, :promoted_by, :now)",
+        {
+            "problem_id": candidate["problem_id"],
+            "signature": candidate["signature"],
+            "owner": owner,
+            "due_at": due_at,
+            "metric": metric,
+            "known_error": known_error or None,
+            "workaround": workaround or None,
+            "promoted_by": usuario,
+            "now": datetime.now(UTC),
+        },
+    )
+
+
+def register_fix(problem_id: str, description: str) -> None:
+    """A correção abre a janela de verificação de eficácia: 30 dias sem reincidência."""
+    execute(
+        f"UPDATE {table('ops', 'problem_records')} SET fix_description = :description, fix_at = :now "
+        "WHERE problem_id = :problem_id",
+        {"description": description, "now": datetime.now(UTC), "problem_id": problem_id},
+    )
+
+
+def render_problems() -> None:
+    st.title("Problemas")
+    st.caption(
+        "Incidentes da mesma assinatura (tipo + ativo + causa) que se repetem. Candidato com 3 ou mais em "
+        "30 dias; uma pessoa promove. Registrada a correção, 30 dias sem reincidência a comprovam."
+    )
+    try:
+        candidatos = query(f"SELECT * FROM {table('ops', 'problem_candidates')} ORDER BY incident_count DESC")
+        registros = {
+            item["problem_id"]: item for item in query(f"SELECT * FROM {table('ops', 'problem_records')}")
+        }
+    except Exception:
+        st.info("Os problemas são calculados pelo ciclo; aguardando o primeiro após a publicação.")
+        return
+    if not candidatos:
+        st.info("Nenhuma recorrência acima do limite.")
+        return
+    pode = can(directory(), usuario, MANAGE_PROBLEM)
+    for item in candidatos:
+        registro = registros.get(item["problem_id"])
+        titulo = f"{ESTADO_PROBLEMA.get(item['status'], item['status'])} · {item['subject']} · {item['cause']}"
+        with st.expander(titulo, expanded=item["status"] in ("candidato", "ineficaz")):
+            st.caption(
+                f"{item['incident_count']} incidente(s) · impacto acumulado {item['impact_score_sum']:.2f} · "
+                f"{item['open_hours']:.1f} h em aberto · {item['efficacy_detail']}"
+            )
+            st.write(", ".join(item["incident_ids"] or []))
+            if registro:
+                st.markdown(
+                    f"**Owner:** {registro['owner']} · **prazo:** {registro['due_at']:%d/%m/%Y} · "
+                    f"**métrica de sucesso:** {registro['success_metric']}"
+                )
+                if registro.get("known_error"):
+                    st.markdown(f"**Known error:** {registro['known_error']}")
+                if registro.get("workaround"):
+                    st.markdown(f"**Workaround:** {registro['workaround']}")
+                if registro.get("fix_at"):
+                    st.markdown(f"**Correção** ({registro['fix_at']:%d/%m/%Y}): {registro['fix_description']}")
+                elif pode:
+                    descricao = st.text_input("Correção permanente aplicada", key=f"fix-{item['problem_id']}")
+                    if st.button("Registrar correção", key=f"fixbtn-{item['problem_id']}", disabled=not descricao):
+                        gravar = functools.partial(register_fix, item["problem_id"], descricao)
+                        if guarded(MANAGE_PROBLEM, item["problem_id"], gravar):
+                            st.rerun()
+                continue
+            if not pode:
+                continue
+            owner = st.text_input("Owner", key=f"owner-{item['problem_id']}")
+            prazo = st.date_input("Prazo", key=f"due-{item['problem_id']}")
+            metrica = st.text_input("Métrica de sucesso", key=f"metric-{item['problem_id']}",
+                                    value="nenhuma reincidência em 30 dias")
+            known_error = st.text_input("Known error (opcional)", key=f"ke-{item['problem_id']}")
+            workaround = st.text_input("Workaround (opcional)", key=f"wa-{item['problem_id']}")
+            if st.button("Promover a problema", key=f"promote-{item['problem_id']}", disabled=not owner):
+                gravar = functools.partial(promote_problem, item, owner, prazo, metrica, known_error, workaround)
+                if guarded(MANAGE_PROBLEM, item["problem_id"], gravar):
+                    st.rerun()
+
+
 SAUDE_ICONE = {"saudavel": "🟢", "degradado": "🟡", "falhando": "🔴", "sem_dados": "⚪"}
 
 
@@ -463,8 +562,13 @@ st.sidebar.caption(
 if directory().error:
     st.sidebar.warning(directory().error)
 render_connector_health()
-visoes = ["Resumo executivo", "Incidentes"] + (["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else [])
+visoes = ["Resumo executivo", "Incidentes", "Problemas"] + (
+    ["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else []
+)
 visao = st.sidebar.radio("Visão", visoes)
+if visao == "Problemas":
+    render_problems()
+    st.stop()
 if visao == "Resumo executivo":
     render_executive()
     st.stop()

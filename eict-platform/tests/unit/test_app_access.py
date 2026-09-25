@@ -118,3 +118,11 @@ def test_quem_decide_recomendacoes():
     assert authorize(DIRETORIO, "ana@exemplo.com", REVIEW_RECOMMENDATION).allowed       # operador
     assert authorize(DIRETORIO, "duda@exemplo.com", REVIEW_RECOMMENDATION).allowed      # data_steward
     assert not authorize(DIRETORIO, "caio@exemplo.com", REVIEW_RECOMMENDATION).allowed  # auditor só lê
+
+
+def test_quem_gerencia_problemas():
+    from access import MANAGE_PROBLEM
+
+    assert authorize(DIRETORIO, "bia@exemplo.com", MANAGE_PROBLEM).allowed       # engenheiro_dados
+    assert authorize(DIRETORIO, "duda@exemplo.com", MANAGE_PROBLEM).allowed      # data_steward
+    assert not authorize(DIRETORIO, "ana@exemplo.com", MANAGE_PROBLEM).allowed   # operador

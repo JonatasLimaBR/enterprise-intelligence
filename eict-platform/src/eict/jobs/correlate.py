@@ -537,6 +537,37 @@ def correlate_quality_incidents(
     return len(touched)
 
 
+def refresh_problems(spark: Any, settings: Settings, now: datetime) -> int:
+    """Candidatos a problema e estado de eficácia dos promovidos. Escreve só `problem_candidates`."""
+    from eict.domain import problems
+
+    incidentes = store.query(spark, f"SELECT * FROM {settings.table('ops', 'incidents')}")
+    revisoes = {
+        record["hypothesis_id"]: record["decision"]
+        for record in sorted(
+            store.query(spark, f"SELECT * FROM {settings.table('ops', 'hypothesis_reviews')}"),
+            key=lambda record: record["at"],
+        )
+    }
+    por_incidente: dict[str, list[dict]] = {}
+    for hipotese in store.query(spark, f"SELECT * FROM {settings.table('ops', 'hypotheses')}"):
+        revisada = {**hipotese, "status": revisoes.get(hipotese["hypothesis_id"], hipotese.get("status"))}
+        por_incidente.setdefault(hipotese["incident_id"], []).append(revisada)
+    registros = {
+        record["problem_id"]: record
+        for record in store.query(spark, f"SELECT * FROM {settings.table('ops', 'problem_records')}")
+    }
+    candidatos = problems.build(incidentes, por_incidente, registros, now)
+    if candidatos:
+        store.merge_rows(
+            spark,
+            settings.table("ops", "problem_candidates"),
+            [problems.row(item, now) for item in candidatos],
+            ["problem_id"],
+        )
+    return len(candidatos)
+
+
 def refresh_recommendations(spark: Any, settings: Settings, now: datetime) -> int:
     """Recomendações dos incidentes ativos. Só insere: a decisão humana mora em outra tabela.
 
@@ -668,6 +699,10 @@ def main(argv: list[str] | None = None) -> None:
         [item.run for item in features],
         regimes,
     )
+    try:
+        refresh_problems(spark, settings, now)
+    except Exception as exc:
+        logger.warning("problemas não avaliados neste ciclo: %s", exc)
     try:
         refresh_recommendations(spark, settings, now)
     except Exception as exc:
