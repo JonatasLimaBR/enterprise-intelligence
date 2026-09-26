@@ -506,6 +506,28 @@ não importa `eict`. As transições estão em `app/savings_actions.py`. Novo pa
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_FINOPS_SAVINGS/SHIPPED_2026-09-25.md`.
 
+### Demo enxuta e janela de verificação (feature EICT_LEAN_DEMO — ✅ Shipped em 2026-09-25)
+
+**O workspace da demo é Databricks Free Edition** (catálogo `workspace`, `Serverless Starter
+Warehouse` 2X-Small, só serverless). Estourada a cota, a conta recusa runs e para o App ("stopped due
+to workspace or account status"). Em 2026-09-24 rodaram 15 runs, ≈ 93 min, e a recusa veio às 19:11
+UTC — 7 h depois do último run.
+
+| Item | Estado |
+|------|--------|
+| Ciclo por etapas | ✅ parâmetro `stages` (ex.: `collect,medallion,correlate,narrate`); desconhecida recusa antes de rodar |
+| Pipeline condicional | ✅ só dispara com observação nova (`collect.main` devolve as inseridas); `force_pipeline=true` força |
+| Janela de verificação | ✅ `demo/verify_pending.sh`: 4 runs, ≈ 34 min previstos, orçamento 45 min / 8 runs, retomável, relatório das 11 features em `demo/verification_report.md` |
+| Apresentação | ✅ `start_demo.sh` / `stop_demo.sh`; gatilho com ciclo curto e consumo medido |
+| Job grande | **Não roda mais**; números da apresentação vêm do snapshot |
+| Testes | ✅ plataforma **716** · kit **48** |
+
+**Ao liberar a cota:** `PROFILE=eict WAREHOUSE_ID=6836da016907f9bc ./demo/verify_pending.sh` (se o
+App ainda mostrar o bloqueio antigo, `--skip-precheck` — disparo recusado não gasta compute). Tem um
+passo manual: reconhecer no console o incidente de SLA que a janela abre.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_LEAN_DEMO/SHIPPED_2026-09-25.md`.
+
 ---
 
 ## Agentes recomendados (agentcode)
