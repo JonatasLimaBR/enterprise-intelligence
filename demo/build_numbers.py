@@ -64,6 +64,24 @@ def execution_facts(runs: list[dict], catalog: str) -> dict:
     }
 
 
+COST_FILE = Path(__file__).resolve().parent / ".presentation_cost.json"
+
+
+def presentation_facts(path: Path = COST_FILE) -> dict:
+    """Consumo da apresentação só entra medido: sem o arquivo do gatilho, o fato não existe."""
+    if not path.exists():
+        return {}
+    medida = json.loads(path.read_text(encoding="utf-8"))
+    return {
+        "presentation_compute_min": fact(
+            round(float(medida["seconds"]) / 60),
+            "minutos de compute da apresentação ao vivo",
+            f"medido por trigger_recorrencia.sh em {medida['measured_at']} ({medida['runs']} run(s), "
+            f"etapas {medida['stages']})",
+        )
+    }
+
+
 def main() -> None:
     incident = json.loads(os.environ["INCIDENT"])[0]
     hypotheses = json.loads(os.environ["HYPOTHESIS"])
@@ -165,6 +183,7 @@ def main() -> None:
         ),
     }
     facts.update(execution)
+    facts.update(presentation_facts())
 
     document = {
         "collected_at": datetime.now(UTC).isoformat(timespec="seconds"),

@@ -293,7 +293,8 @@ def persist(spark: Any, settings: Settings, envelopes: list[Envelope]) -> int:
     )
 
 
-def main(argv: list[str] | None = None) -> None:
+def main(argv: list[str] | None = None) -> int:
+    """Devolve as observações inseridas: o ciclo pula o pipeline quando não há nada novo."""
     from databricks.sdk import WorkspaceClient
     from pyspark.sql import SparkSession
 
@@ -331,6 +332,7 @@ def main(argv: list[str] | None = None) -> None:
         ["capability"],
     )
     logger.info("collected %s observations", persisted)
+    return persisted
 
 
 def _github_client(workspace: Any, settings: Settings) -> GitHubClient | None:

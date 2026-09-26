@@ -43,6 +43,12 @@ resources:
           default: ${var.warehouse_id}
         - name: savings_policy
           default: ${workspace.file_path}/finops/savings.yaml
+        # Etapas a rodar (lista separada por vírgula ou "all") e se o pipeline roda mesmo sem
+        # observação nova. Usados pela janela de verificação e pela demo para poupar cota.
+        - name: stages
+          default: all
+        - name: force_pipeline
+          default: "false"
       environments:
         - environment_key: default
           spec:
@@ -75,4 +81,6 @@ resources:
               - "--allocation-dir={{job.parameters.allocation_dir}}"
               - "--platform-warehouse-id={{job.parameters.platform_warehouse_id}}"
               - "--savings-policy={{job.parameters.savings_policy}}"
+              - "--stages={{job.parameters.stages}}"
+              - "--force-pipeline={{job.parameters.force_pipeline}}"
               - "--pipeline-id=${resources.pipelines.medallion.id}"

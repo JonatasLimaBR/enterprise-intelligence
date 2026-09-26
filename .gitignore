@@ -13,3 +13,7 @@ build/
 .coverage
 .claude/
 .ai-dev-kit/
+
+# Estado local da janela de verificação e custo medido da apresentação (demo/)
+demo/.verify_state.json
+demo/.presentation_cost.json

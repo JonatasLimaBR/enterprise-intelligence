@@ -29,7 +29,12 @@ export WAREHOUSE_ID=<id-do-warehouse>
 
 ./prepare_small_job.sh --measure-only   # mede leve × pesado do job do gatilho
 ./prepare_small_job.sh                  # forma baseline e primeiro incidente (uma vez)
-./trigger_recorrencia.sh                # durante a apresentação: recorrência de verdade
+./trigger_recorrencia.sh                # durante a apresentação: recorrência de verdade (ciclo curto)
+
+./start_demo.sh               # liga warehouse e App e restaura o estado congelado
+./stop_demo.sh                # desliga App e warehouse — ligados, consomem cota
+./verify_pending.sh           # janela de verificação das features pendentes (retomável)
+./verify_pending.sh --reset   # descarta o progresso e começa outra janela
 
 python verify_demo.py           # porta de qualidade do kit
 python verify_demo.py --strict  # exige também as capturas de tela
@@ -37,10 +42,31 @@ python verify_demo.py --strict  # exige também as capturas de tela
 
 ## Antes de apresentar
 
-1. `./reset_demo.sh` — garante o estado conhecido.
+1. `./start_demo.sh` — liga o que a apresentação usa e restaura o estado conhecido.
 2. Abra o console e deixe o incidente carregado numa aba.
 3. Se for usar o gatilho ao vivo, confirme que `./prepare_small_job.sh` já rodou alguma vez.
 4. Leia o bloco 3 do roteiro em voz alta uma vez. É o trecho que sustenta a demo.
+5. Ao terminar: `./stop_demo.sh`.
+
+## Cota da Free Edition
+
+O workspace da demo é Databricks Free Edition: estourada a cota, a conta recusa novos runs
+(*"Triggering new runs for organization … disabled temporarily"*) e para o App. Para gastar pouco:
+
+- **O job grande (`eict-demo-sales-daily`) não roda mais.** Os números da apresentação vêm do snapshot;
+  a verificação e o gatilho usam só o job pequeno.
+- **App e warehouse desligados fora de uso** (`stop_demo.sh`).
+- **Ciclo por etapas:** o job do ciclo aceita `stages` (ex.: `collect,medallion,correlate,narrate`) e só
+  dispara o pipeline Lakeflow quando o collect gravou observação nova (`force_pipeline=true` força).
+- **Janela de verificação** (`verify_pending.sh`): 4 runs, ≈ 34 min previstos, orçamento padrão de
+  45 min e 8 runs (`BUDGET_MINUTES`, `BUDGET_RUNS`). Confere o bloqueio antes de gastar, para na primeira
+  recusa guardando o progresso em `.verify_state.json` (fora do git), sempre desliga App e warehouse, e
+  grava `verification_report.md` com o estado de cada uma das 11 features e o consumo previsto × real.
+  Tem um passo manual: reconhecer no console o incidente de SLA que a própria janela abre.
+  Se o status do App ainda mostrar o bloqueio antigo depois de a cota voltar, use `--skip-precheck` —
+  um disparo recusado não gasta compute.
+- **Consumo da apresentação** só entra em `numbers.json` medido: `trigger_recorrencia.sh` grava
+  `.presentation_cost.json` e `collect_numbers.sh` o transforma no fato `presentation_compute_min`.
 
 ## A regra dos números
 
