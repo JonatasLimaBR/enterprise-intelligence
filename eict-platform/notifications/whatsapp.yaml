@@ -1,0 +1,19 @@
+# Notificação outbound por WhatsApp (Meta Cloud API).
+# Fail-safe: enquanto `opt_in` for false ou faltar destino/phone_number_id/template, nada é enviado.
+# O token NUNCA fica aqui — vem do secret scope, chave `whatsapp_token`.
+#
+# Pendente para envio real: template `eict_incident_alert` aprovado pela Meta (utility) e um número
+# de plantão com opt-in. Ao ter os dois, preencha `destination`, `phone_number_id` e ligue `opt_in`.
+channel: whatsapp
+phone_number_id: ""            # id do número da WABA (endpoint de envio)
+destination: ""                # número/grupo de plantão em E.164, ex.: +5511999999999
+opt_in: false                  # sem opt-in explícito, não envia
+threshold: high                # notifica desta severidade para cima (info<warning<high<critical<blocking)
+template_name: eict_incident_alert
+template_lang: pt_BR
+console_url: "https://eict-console-dev-7474644308924051.aws.databricksapps.com"
+quiet_hours:
+  start: "22:00"
+  end: "07:00"
+  tz: America/Sao_Paulo
+lookback_hours: 24

@@ -528,6 +528,27 @@ passo manual: reconhecer no console o incidente de SLA que a janela abre.
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_LEAN_DEMO/SHIPPED_2026-09-25.md`.
 
+### War room / notificação WhatsApp (feature EICT_WAR_ROOM_WHATSAPP — ✅ Shipped em 2026-09-27, não publicado) — Fase 2
+
+Primeiro canal outbound: notificação por **WhatsApp (Meta Cloud API)** nos eventos materiais do
+incidente. Inicia o item "Teams/Slack war room" (feito por WhatsApp); Slack/Teams e a war room
+compartilhada ficam para depois, atrás da mesma interface.
+
+| Item | Estado |
+|------|--------|
+| Escopo | ✅ notificação outbound + anti-spam (L0); sem sala nem comandos de entrada |
+| Eventos materiais | ✅ abertura · escalonamento · recuperação (derivados dos campos do incidente + `insert_missing` idempotente; `lookback` evita backfill) |
+| Anti-spam | ✅ limiar global · dedup por `(incident_id, evento)` · quiet hours com `blocking`/`critical` furando (padrão 22:00–07:00 America/Sao_Paulo); sem teto de throttle |
+| Entrega | ✅ `notification_outbox` + `WhatsAppClient` (retryable vs permanente) → backoff `1/2/4/8/16 min`, 5 tentativas → DLQ; `notification_refs` no incidente (campo de 1ª classe lido em `to_incident`) |
+| Template | ✅ campos do incidente + evidências (top 2) + link; **sem owner/SLA** (não estão no `Incident`) |
+| Console | ✅ visão "Comunicação" (OPS-49) lê `ops.notification_outbox` direto; retenção 90 d |
+| Estágio | ✅ `notify` autocontido no fim do ciclo (não toca `correlate`/`dispatch`) |
+| Config | ✅ `eict-platform/notifications/whatsapp.yaml` (fail-safe: `opt_in:false` até número+template prontos); param `notifications_dir` no bundle; token no secret scope (`whatsapp_token`) |
+| Testes | ✅ **752** (47 novos) · ruff limpo |
+| Publicação/verificação | ⛔ pendente: aprovar template na Meta, número com opt-in, `whatsapp_token`, reautenticar CLI, `--stages notify` com a cota liberada |
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_WAR_ROOM_WHATSAPP/SHIPPED_2026-09-27.md` (SDD completo: brainstorm → define → design → build → ship).
+
 ---
 
 ## Agentes recomendados (agentcode)

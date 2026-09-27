@@ -354,6 +354,23 @@ TABLES: dict[tuple[str, str], str] = {
         description STRING,
         updated_at TIMESTAMP
     """,
+    ("ops", "notification_outbox"): """
+        dedup_key STRING NOT NULL,
+        incident_id STRING,
+        event STRING,
+        severity STRING,
+        channel STRING,
+        destination STRING,
+        status STRING,
+        attempts INT,
+        next_attempt_at TIMESTAMP,
+        last_error STRING,
+        message_id STRING,
+        template_name STRING,
+        variables_json STRING,
+        created_at TIMESTAMP,
+        updated_at TIMESTAMP
+    """,
     ("ops", "dlq"): """
         dlq_id STRING NOT NULL,
         source STRING,
@@ -578,6 +595,7 @@ MIGRATIONS = (
     ("ops", "incidents", "ADD COLUMN escalation_reason STRING"),
     ("ops", "incidents", "ADD COLUMN acknowledged_at TIMESTAMP"),
     ("ops", "incidents", "ADD COLUMN acknowledged_by STRING"),
+    ("ops", "incidents", "ADD COLUMN notification_refs ARRAY<STRING>"),
     ("ops", "dlq", "ADD COLUMN error_class STRING"),
     ("ops", "dlq", "ADD COLUMN attempts INT"),
     ("ops", "dlq", "ADD COLUMN first_at TIMESTAMP"),

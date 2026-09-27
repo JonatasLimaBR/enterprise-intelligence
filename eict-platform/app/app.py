@@ -930,6 +930,36 @@ def _render(value) -> str:
     return str(value)
 
 
+ESTADO_NOTIFICACAO = {"pending": "🟡 na fila", "sent": "🟢 enviada", "failed": "⛔ na DLQ"}
+
+
+def render_communications() -> None:
+    """OPS-49 (SPEC-017): entregas, falhas e retries por incidente, do notification_outbox."""
+    st.title("Comunicação")
+    st.caption("Notificações de WhatsApp por incidente — fila, entregas e falhas (retenção 90 dias)")
+    try:
+        linhas = query(
+            f"SELECT * FROM {table('ops', 'notification_outbox')} ORDER BY updated_at DESC"
+        )
+    except Exception:
+        st.info("As notificações são gravadas pelo ciclo; aguardando o primeiro após a publicação.")
+        return
+    if not linhas:
+        st.info("Nenhuma notificação enfileirada ainda.")
+        return
+    for linha in linhas:
+        estado = ESTADO_NOTIFICACAO.get(linha["status"], linha["status"])
+        titulo = f"{estado} · {linha['event']} · {linha['severity']} · {linha['incident_id'][:12]}"
+        with st.expander(titulo):
+            st.caption(
+                f"tentativas: {linha.get('attempts') or 0}"
+                + (f" · próxima: {linha['next_attempt_at']:%d/%m %H:%M} UTC" if linha.get("next_attempt_at") else "")
+                + (f" · msg: {linha['message_id']}" if linha.get("message_id") else "")
+            )
+            if linha.get("last_error"):
+                st.error(linha["last_error"])
+
+
 usuario = identity()
 papeis = directory().roles_of(usuario)
 st.sidebar.caption(
@@ -939,7 +969,7 @@ st.sidebar.caption(
 if directory().error:
     st.sidebar.warning(directory().error)
 render_connector_health()
-visoes = ["Resumo executivo", "Incidentes", "Problemas", "Runbooks", "Custos", "Economia"] + (
+visoes = ["Resumo executivo", "Incidentes", "Problemas", "Runbooks", "Custos", "Economia", "Comunicação"] + (
     ["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else []
 )
 visao = st.sidebar.radio("Visão", visoes)
@@ -954,6 +984,9 @@ if visao == "Custos":
     st.stop()
 if visao == "Economia":
     render_savings()
+    st.stop()
+if visao == "Comunicação":
+    render_communications()
     st.stop()
 if visao == "Resumo executivo":
     render_executive()

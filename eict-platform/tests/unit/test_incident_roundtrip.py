@@ -32,6 +32,7 @@ COMPLETO = Incident(
     updated_at=AGORA,
     affected_assets=("painel", "x"),
     ticket_refs=("EICT-1",),
+    notification_refs=("wamid.ABC123",),
     declared_consumers=("comercial",),
     impact_score=1.675,
     impact_policy_version="impact-v1",

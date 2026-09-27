@@ -15,7 +15,7 @@ variables:
     description: Volume path where instrumented workloads land run profiles
     default: /Volumes/workspace/eict_platform/landing
   secret_scope:
-    description: Secret scope holding github_token, jira_email and jira_token
+    description: Secret scope holding github_token, jira_email, jira_token and whatsapp_token
     default: eict
   warehouse_id:
     description: SQL warehouse used by the Databricks App

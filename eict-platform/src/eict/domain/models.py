@@ -194,6 +194,7 @@ class Incident:
     updated_at: datetime
     affected_assets: tuple[str, ...] = ()
     ticket_refs: tuple[str, ...] = ()
+    notification_refs: tuple[str, ...] = ()
     declared_consumers: tuple[str, ...] = ()
     impact_score: float = 0.0
     impact_policy_version: str = ""
@@ -276,6 +277,13 @@ class Incident:
             return self
         return replace(
             self, ticket_refs=(*self.ticket_refs, ticket_ref), version=self.version + 1
+        )
+
+    def with_notification(self, notification_ref: str) -> Incident:
+        if notification_ref in self.notification_refs:
+            return self
+        return replace(
+            self, notification_refs=(*self.notification_refs, notification_ref), version=self.version + 1
         )
 
 
