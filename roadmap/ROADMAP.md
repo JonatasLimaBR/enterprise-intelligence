@@ -14,7 +14,13 @@ Foundation e MVP passam a incluir shells operacional/administrativo, central de 
 - dataset de incidentes históricos;
 - critérios de sucesso.
 
-## Fase 1 — MVP DataOps Databricks (8–12 semanas)
+## Fase 1 — MVP DataOps Databricks (8–12 semanas) — ✅ completa no código (2026-09-27)
+
+> Todos os itens abaixo estão implementados e testados. Verificados em produção: conectores,
+> eventos, runtime, comparação de runs, correlação, contratos, impacto, registry semântico.
+> Não publicados/verificados (workspace Free Edition recusando runs desde 2026-09-24): risco de SLA,
+> auditoria/RBAC, saúde dos conectores, baseline de custo, resumo executivo, reconhecimento,
+> recomendações. ITSM (Jira): código pronto, falta credencial. Ver `PROJECT-STATUS.md`.
 
 - connectors Databricks + Git + ITSM;
 - event model e stores;
@@ -26,7 +32,11 @@ Foundation e MVP passam a incluir shells operacional/administrativo, central de 
 - audit e RBAC;
 - read-only recommendations.
 
-## Fase 2 — Quality, graph e problem (8–12 semanas)
+## Fase 2 — Quality, graph e problem (8–12 semanas) — ✅ completa no código (2026-09-27)
+
+> Todos os itens abaixo implementados e testados; publicação/verificação real pendente do desbloqueio
+> do workspace. Último item entregue: "Teams/Slack war room" iniciado pelo canal WhatsApp
+> (EICT_WAR_ROOM_WHATSAPP). Ver `PROJECT-STATUS.md`.
 
 - data contracts e quality integration;
 - Unity Catalog lineage;
