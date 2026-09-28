@@ -573,6 +573,24 @@ mudança que só alcança dashboard, sem histórico, fica em "médio". Âncoras/
 Arquivo do ciclo: `.claude/sdd/archive/EICT_CHANGE_RISK/SHIPPED_2026-09-28.md` (SDD completo). Abre a
 Fase 3; faltam as features 2–4 (secrets/SAST/SCA, SBOM/supply chain, deployment gates).
 
+### Detecção de segredos (feature EICT_SECRET_SCAN — ✅ Shipped em 2026-09-28, não publicado) — Fase 3
+
+Feature 2 do programa da Fase 3. Detector de segredos **read-only** sobre o diff, alimentando o change risk.
+
+| Item | Estado |
+|------|--------|
+| Motor | ✅ regex curado + entropia de Shannon (≥20 chars/≥4.0 bits), domínio puro, só linhas `+` |
+| Segurança | ✅ trecho **sempre mascarado** (`AKIA***`); valor cru nunca persiste/loga; segredos de teste sintéticos |
+| Catálogo | ✅ `eict-platform/secret_scan/patterns.yaml` (AWS/PEM/dapi=alta, genérico=média); fail-safe **continua varrendo** com `DEFAULT_POLICY` embutido |
+| Ordem | ✅ estágio `secret_scan` **antes** do `change_risk` (que consome os findings; único escritor de `ops.change_risk`) |
+| Integração | ✅ finding de alta severidade impõe **piso de banda "alto"** + entra em `contributors_json`; média só contribui |
+| Read model/console | ✅ `ops.secret_findings`; findings na visão "Mudanças" e no incidente ligado |
+| Testes | ✅ **794** (22 novos) · ruff limpo |
+| Publicação/verificação | ⛔ pendente: `--stages secret_scan,change_risk` com a cota liberada |
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_SECRET_SCAN/SHIPPED_2026-09-28.md` (SDD completo). Restam as
+features 3 (SBOM/supply chain) e 4 (deployment gates, ação L2) da Fase 3.
+
 ---
 
 ## Agentes recomendados (agentcode)

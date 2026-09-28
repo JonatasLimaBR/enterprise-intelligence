@@ -1,0 +1,23 @@
+# Catálogo de padrões de segredo (EICT_SECRET_SCAN).
+# Inválido/ausente → o detector usa o catálogo embutido (a varredura NUNCA é silenciada).
+patterns:
+  - name: aws_access_key
+    regex: "AKIA[0-9A-Z]{16}"
+    severity: alta
+  - name: private_key
+    regex: "-----BEGIN [A-Z ]*PRIVATE KEY-----"
+    severity: alta
+  - name: databricks_token
+    regex: "dapi[0-9a-f]{32}"
+    severity: alta
+  - name: generic_secret
+    regex: "(?i)(api[_-]?key|token|secret|password)\\s*[:=]\\s*['\"][^'\"]{8,}['\"]"
+    severity: média
+
+# Alta entropia: token com ao menos min_len chars e Shannon >= min_bits vira finding média.
+entropy:
+  min_len: 20
+  min_bits: 4.0
+
+# Máscara: mostra os N primeiros chars do casamento + "***"; nunca o valor completo.
+mask_prefix: 4

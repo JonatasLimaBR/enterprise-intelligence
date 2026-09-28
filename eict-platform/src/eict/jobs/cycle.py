@@ -127,6 +127,7 @@ def cycle_stages(
         narrate,
         notify,
         quality,
+        secret_scan,
         semantics,
     )
 
@@ -138,6 +139,7 @@ def cycle_stages(
         ("quality", lambda: quality.main(argv)),
         ("semantics", lambda: semantics.main(argv)),
         ("correlate", lambda: correlate.main(argv)),
+        ("secret_scan", lambda: secret_scan.main(argv)),
         ("change_risk", lambda: change_risk.main(argv)),
         ("narrate", lambda: narrate.main(argv)),
         ("dispatch", lambda: dispatch.main(argv)),

@@ -945,6 +945,18 @@ def load_change_risk_by_run(run_id: str) -> dict | None:
     return rows[0] if rows else None
 
 
+def load_secret_findings(sha: str) -> list[dict]:
+    if not sha:
+        return []
+    try:
+        return query(
+            f"SELECT * FROM {table('ops', 'secret_findings')} WHERE sha = :sha ORDER BY severity, file, line",
+            {"sha": sha},
+        )
+    except Exception:
+        return []
+
+
 def render_change_risk(risco: dict) -> None:
     banda = BANDA_RISCO.get(risco["band"], risco["band"])
     st.markdown(f"**Risco da mudança `{risco['sha'][:8]}`: {banda}** (score {risco['total_score']:.2f})")
@@ -955,6 +967,14 @@ def render_change_risk(risco: dict) -> None:
         ("Proveniência", "provenance_score", "provenance_reason"),
     ):
         st.caption(f"{rotulo}: {risco[score]:.2f} — {risco[motivo]}")
+    findings = load_secret_findings(risco["sha"])
+    if findings:
+        st.error(f"🔑 {len(findings)} segredo(s) potencial(is) no diff:")
+        for finding in findings:
+            st.caption(
+                f"{finding['severity']} · {finding['pattern_name']} · "
+                f"{finding.get('file') or '?'}:{finding.get('line') or '?'} · {finding['masked']}"
+            )
 
 
 def render_changes() -> None:

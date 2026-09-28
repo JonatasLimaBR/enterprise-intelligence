@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -124,10 +125,34 @@ def risk_row(risk: ChangeRisk, change, now: datetime) -> dict:
     }
 
 
+def load_secret_findings(spark: Any, settings: Settings) -> dict[str, list[dict]]:
+    try:
+        registros = store.query(
+            spark,
+            f"SELECT sha, pattern_name, severity FROM {settings.table('ops', 'secret_findings')}",
+        )
+    except Exception:
+        return {}
+    por_sha: dict[str, list[dict]] = {}
+    for registro in registros:
+        por_sha.setdefault(registro["sha"], []).append(registro)
+    return por_sha
+
+
+def apply_secrets(risk: ChangeRisk, findings: list[dict]) -> ChangeRisk:
+    if not findings:
+        return risk
+    contribuidores = tuple(f"segredo: {f['pattern_name']} ({f['severity']})" for f in findings)
+    banda = "alto" if any(f.get("severity") == "alta" for f in findings) else risk.band
+    return replace(risk, band=banda, contributors=risk.contributors + contribuidores)
+
+
 def build_rows(
     changes: list, sources: tuple[tuple[str, str], ...], edges: tuple, incidents: list[dict],
     weights: ChangeRiskWeights, now: datetime, settings: Settings,
+    findings_by_sha: dict[str, list[dict]] | None = None,
 ) -> list[dict]:
+    findings_by_sha = findings_by_sha or {}
     assets_por_change = {change.sha: assets_for(change.files, sources) for change in changes}
     changes_at_by_asset: dict[str, list[datetime]] = {}
     for change in changes:
@@ -138,7 +163,9 @@ def build_rows(
         assets = assets_por_change[change.sha]
         blast = blast_for(assets, edges, now, weights, settings)
         history = history_for(assets, incidents, changes_at_by_asset, weights)
-        linhas.append(risk_row(score_change(change, blast, history, weights), change, now))
+        risco = score_change(change, blast, history, weights)
+        risco = apply_secrets(risco, findings_by_sha.get(change.sha, []))
+        linhas.append(risk_row(risco, change, now))
     return linhas
 
 
@@ -157,8 +184,9 @@ def main(argv: list[str] | None = None) -> None:
     sources = load_registry(settings.metrics_dir).sources
     edges = lineage.load_graph(spark, settings)
     incidents = load_incident_assets(spark, settings)
+    findings_by_sha = load_secret_findings(spark, settings)
 
-    rows = build_rows(changes, sources, edges, incidents, weights, now, settings)
+    rows = build_rows(changes, sources, edges, incidents, weights, now, settings, findings_by_sha)
     store.replace_rows(spark, settings.table("ops", "change_risk"), rows)
     logger.info("change_risk pontuou %s mudança(s)", len(rows))
 

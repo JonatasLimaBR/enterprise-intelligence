@@ -354,6 +354,16 @@ TABLES: dict[tuple[str, str], str] = {
         description STRING,
         updated_at TIMESTAMP
     """,
+    ("ops", "secret_findings"): """
+        sha STRING NOT NULL,
+        file STRING,
+        line INT,
+        pattern_name STRING,
+        severity STRING,
+        masked STRING,
+        computed_at TIMESTAMP,
+        policy_version STRING
+    """,
     ("ops", "change_risk"): """
         sha STRING NOT NULL,
         repo STRING,
