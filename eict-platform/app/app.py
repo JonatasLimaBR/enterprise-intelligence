@@ -930,6 +930,54 @@ def _render(value) -> str:
     return str(value)
 
 
+BANDA_RISCO = {"alto": "🔴 alto", "médio": "🟡 médio", "baixo": "🟢 baixo"}
+
+
+def load_change_risk_by_run(run_id: str) -> dict | None:
+    if not run_id:
+        return None
+    rows = query(
+        f"SELECT cr.* FROM {table('ops', 'change_risk')} cr "
+        f"JOIN {table('gold', 'run_features')} rf ON cr.sha = rf.git_sha "
+        f"WHERE rf.run_id = :run_id LIMIT 1",
+        {"run_id": run_id},
+    )
+    return rows[0] if rows else None
+
+
+def render_change_risk(risco: dict) -> None:
+    banda = BANDA_RISCO.get(risco["band"], risco["band"])
+    st.markdown(f"**Risco da mudança `{risco['sha'][:8]}`: {banda}** (score {risco['total_score']:.2f})")
+    for rotulo, score, motivo in (
+        ("Blast radius", "blast_score", "blast_reason"),
+        ("Histórico", "history_score", "history_reason"),
+        ("Tamanho", "size_score", "size_reason"),
+        ("Proveniência", "provenance_score", "provenance_reason"),
+    ):
+        st.caption(f"{rotulo}: {risco[score]:.2f} — {risco[motivo]}")
+
+
+def render_changes() -> None:
+    """PR/change risk (SPEC-009): score explicável por commit, read-only."""
+    st.title("Mudanças")
+    st.caption("Risco por commit — blast radius, histórico, tamanho e proveniência (recomendação, não bloqueio)")
+    try:
+        linhas = query(f"SELECT * FROM {table('ops', 'change_risk')} ORDER BY total_score DESC")
+    except Exception:
+        st.info("O risco de mudança é calculado pelo ciclo; aguardando o primeiro após a publicação.")
+        return
+    if not linhas:
+        st.info("Nenhuma mudança pontuada ainda.")
+        return
+    for risco in linhas:
+        banda = BANDA_RISCO.get(risco["band"], risco["band"])
+        titulo = f"{banda} · {risco['total_score']:.2f} · {risco['sha'][:8]} · {risco.get('author') or '—'}"
+        with st.expander(titulo):
+            render_change_risk(risco)
+            if risco.get("assets"):
+                st.caption("Assets: " + ", ".join(risco["assets"]))
+
+
 ESTADO_NOTIFICACAO = {"pending": "🟡 na fila", "sent": "🟢 enviada", "failed": "⛔ na DLQ"}
 
 
@@ -969,9 +1017,9 @@ st.sidebar.caption(
 if directory().error:
     st.sidebar.warning(directory().error)
 render_connector_health()
-visoes = ["Resumo executivo", "Incidentes", "Problemas", "Runbooks", "Custos", "Economia", "Comunicação"] + (
-    ["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else []
-)
+visoes = [
+    "Resumo executivo", "Incidentes", "Problemas", "Runbooks", "Custos", "Economia", "Mudanças", "Comunicação",
+] + (["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else [])
 visao = st.sidebar.radio("Visão", visoes)
 if visao == "Problemas":
     render_problems()
@@ -984,6 +1032,9 @@ if visao == "Custos":
     st.stop()
 if visao == "Economia":
     render_savings()
+    st.stop()
+if visao == "Mudanças":
+    render_changes()
     st.stop()
 if visao == "Comunicação":
     render_communications()
@@ -1035,6 +1086,10 @@ header[3].metric(
     NOT_AVAILABLE if not cost or cost["status"] != "available" else f"US$ {cost['incremental_cost_usd']:.2f}",
     help=None if not cost else f"status: {cost['status']}",
 )
+
+risco_mudanca = load_change_risk_by_run(incident["last_run_id"])
+if risco_mudanca:
+    render_change_risk(risco_mudanca)
 
 raio = incident.get("affected_assets") or []
 if raio:

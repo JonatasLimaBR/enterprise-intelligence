@@ -1,0 +1,31 @@
+# Pesos e limiares do score de risco de mudança (EICT_CHANGE_RISK).
+# Valores iniciais fundamentados; calibráveis com dados reais. Config inválida/ausente → estes padrões.
+blast: 0.40
+history: 0.30
+size: 0.20
+provenance: 0.10
+
+# Bandas sobre o total [0,1]: baixo < band_low; médio entre; alto > band_high.
+band_low: 0.34
+band_high: 0.66
+
+# Normalização do tamanho: patch com files_cap arquivos e lines_cap linhas satura o sinal.
+files_cap: 10
+lines_cap: 400
+
+# Histórico: incidentes nos mesmos assets seguidos de mudança dentro de history_days;
+# history_denom incidentes saturam o sinal.
+history_days: 14
+history_denom: 3
+
+# Blast: alcançar consumo humano crava 1.0; senão, soma dos scores do raio dividida pela âncora.
+asset_anchor: 3.0
+
+# Proveniência: automação/IA se o autor casa um padrão OU a mensagem tem um trailer.
+author_patterns:
+  - "[bot]"
+  - noreply
+  - actions
+trailer_patterns:
+  - "generated-by:"
+  - "co-authored-by:"

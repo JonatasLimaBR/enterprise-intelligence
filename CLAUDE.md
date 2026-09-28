@@ -549,6 +549,30 @@ compartilhada ficam para depois, atrás da mesma interface.
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_WAR_ROOM_WHATSAPP/SHIPPED_2026-09-27.md` (SDD completo: brainstorm → define → design → build → ship).
 
+### PR/change risk (feature EICT_CHANGE_RISK — ✅ Shipped em 2026-09-28, não publicado) — Fase 3
+
+Primeira feature da **Fase 3 (Code e Security)**, decidida como **programa de 4 features em sequência**
+(1: change risk · 2: secrets/SAST/SCA · 3: SBOM/supply chain · 4: deployment gates). Esta é a **espinha**:
+as outras 3 alimentam o score / viram policy.
+
+| Item | Estado |
+|------|--------|
+| Modelo | ✅ score ponderado determinístico: `0.40 blast + 0.30 histórico + 0.20 tamanho + 0.10 proveniência`; bandas baixo<0.34/médio/alto>0.66 |
+| Blast radius | ✅ arquivos→assets (registry) → `impact.traverse`; **alcançar consumo humano crava 1.0**; sem asset → 0 com motivo |
+| Histórico | ✅ incidentes nos **mesmos assets** após mudança prévia (janela 14 d), asset-centric (não pune autor) |
+| Proveniência | ✅ automação/IA por padrão de autor **ou** trailer do commit; menor peso, nunca bloqueia pela origem (SPEC-009) |
+| Config | ✅ `eict-platform/change_risk/weights.yaml` versionada, fail-safe → pesos-padrão; param `change_risk_dir` |
+| Estágio | ✅ `change_risk` read-only após `correlate`; grava `ops.change_risk` (`replace_rows`) |
+| Console | ✅ visão "Mudanças" + score no incidente por join `git_sha` (sem tocar `incidents`); `contributors_json` = extensão feat 2–4 |
+| Testes | ✅ **772** (20 novos) · ruff limpo |
+| Publicação/verificação | ⛔ pendente: `--stages change_risk` com a cota liberada |
+
+**Calibração honesta:** `9872c00` cai em "alto" porque alcança dashboard **e** o asset tem histórico;
+mudança que só alcança dashboard, sem histórico, fica em "médio". Âncoras/caps são versionados e calibráveis.
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_CHANGE_RISK/SHIPPED_2026-09-28.md` (SDD completo). Abre a
+Fase 3; faltam as features 2–4 (secrets/SAST/SCA, SBOM/supply chain, deployment gates).
+
 ---
 
 ## Agentes recomendados (agentcode)

@@ -31,6 +31,7 @@ class Settings:
     platform_warehouse_id: str = ""
     savings_policy: str = ""
     notifications_dir: str = ""
+    change_risk_dir: str = ""
 
     @property
     def excluded_assets(self) -> tuple[str, ...]:
@@ -71,6 +72,7 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
     parser.add_argument("--platform-warehouse-id", default="")
     parser.add_argument("--savings-policy", default="")
     parser.add_argument("--notifications-dir", default="")
+    parser.add_argument("--change-risk-dir", default="")
     known, _ = parser.parse_known_args(argv)
     return Settings(
         catalog=known.catalog,
@@ -94,4 +96,5 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
         platform_warehouse_id=known.platform_warehouse_id,
         savings_policy=known.savings_policy,
         notifications_dir=known.notifications_dir,
+        change_risk_dir=known.change_risk_dir,
     )

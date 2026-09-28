@@ -354,6 +354,26 @@ TABLES: dict[tuple[str, str], str] = {
         description STRING,
         updated_at TIMESTAMP
     """,
+    ("ops", "change_risk"): """
+        sha STRING NOT NULL,
+        repo STRING,
+        author STRING,
+        committed_at TIMESTAMP,
+        total_score DOUBLE,
+        band STRING,
+        blast_score DOUBLE,
+        blast_reason STRING,
+        history_score DOUBLE,
+        history_reason STRING,
+        size_score DOUBLE,
+        size_reason STRING,
+        provenance_score DOUBLE,
+        provenance_reason STRING,
+        assets ARRAY<STRING>,
+        contributors_json STRING,
+        computed_at TIMESTAMP,
+        policy_version STRING
+    """,
     ("ops", "notification_outbox"): """
         dedup_key STRING NOT NULL,
         incident_id STRING,

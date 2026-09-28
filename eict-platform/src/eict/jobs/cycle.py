@@ -119,7 +119,16 @@ def cycle_stages(
     argv: list[str] | None, pipeline_id: str = "", context: CycleContext | None = None
 ) -> list[tuple[str, Callable[[], None]]]:
     """O ciclo inteiro, na ordem em que as etapas dependem umas das outras."""
-    from eict.jobs import bootstrap_ops, correlate, dispatch, narrate, notify, quality, semantics
+    from eict.jobs import (
+        bootstrap_ops,
+        change_risk,
+        correlate,
+        dispatch,
+        narrate,
+        notify,
+        quality,
+        semantics,
+    )
 
     contexto = context or CycleContext()
     return [
@@ -129,6 +138,7 @@ def cycle_stages(
         ("quality", lambda: quality.main(argv)),
         ("semantics", lambda: semantics.main(argv)),
         ("correlate", lambda: correlate.main(argv)),
+        ("change_risk", lambda: change_risk.main(argv)),
         ("narrate", lambda: narrate.main(argv)),
         ("dispatch", lambda: dispatch.main(argv)),
         ("notify", lambda: notify.main(argv)),

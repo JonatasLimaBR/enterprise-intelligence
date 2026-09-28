@@ -45,6 +45,8 @@ resources:
           default: ${workspace.file_path}/finops/savings.yaml
         - name: notifications_dir
           default: ${workspace.file_path}/notifications
+        - name: change_risk_dir
+          default: ${workspace.file_path}/change_risk
         # Etapas a rodar (lista separada por vírgula ou "all") e se o pipeline roda mesmo sem
         # observação nova. Usados pela janela de verificação e pela demo para poupar cota.
         - name: stages
@@ -84,6 +86,7 @@ resources:
               - "--platform-warehouse-id={{job.parameters.platform_warehouse_id}}"
               - "--savings-policy={{job.parameters.savings_policy}}"
               - "--notifications-dir={{job.parameters.notifications_dir}}"
+              - "--change-risk-dir={{job.parameters.change_risk_dir}}"
               - "--stages={{job.parameters.stages}}"
               - "--force-pipeline={{job.parameters.force_pipeline}}"
               - "--pipeline-id=${resources.pipelines.medallion.id}"
