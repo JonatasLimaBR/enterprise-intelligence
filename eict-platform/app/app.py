@@ -975,12 +975,50 @@ def render_change_risk(risco: dict) -> None:
                 f"{finding['severity']} · {finding['pattern_name']} · "
                 f"{finding.get('file') or '?'}:{finding.get('line') or '?'} · {finding['masked']}"
             )
+    vulns = load_dependency_findings(risco["sha"])
+    if vulns:
+        st.error(f"📦 {len(vulns)} dependência(s) vulnerável(is) na mudança:")
+        for vuln in vulns:
+            st.caption(
+                f"{vuln['severity']} · {vuln['package']} {vuln.get('declared') or ''} "
+                f"→ corrige em {vuln.get('fixed_in') or '?'} · {vuln.get('cve') or ''}"
+            )
+
+
+def load_dependency_findings(sha: str) -> list[dict]:
+    if not sha:
+        return []
+    try:
+        return query(
+            f"SELECT * FROM {table('ops', 'dependency_findings')} WHERE sha = :sha ORDER BY severity, package",
+            {"sha": sha},
+        )
+    except Exception:
+        return []
+
+
+def render_sbom() -> None:
+    try:
+        deps = query(f"SELECT * FROM {table('ops', 'dependencies')} ORDER BY package")
+        vulns = query(f"SELECT * FROM {table('ops', 'dependency_findings')} WHERE sha IS NULL OR sha = ''")
+    except Exception:
+        return
+    if not deps and not vulns:
+        return
+    with st.expander(f"📦 SBOM — {len(deps)} dependência(s), {len(vulns)} vulnerável(is)"):
+        for vuln in vulns:
+            st.caption(
+                f"⚠️ {vuln['severity']} · {vuln['package']} {vuln.get('declared') or ''} "
+                f"→ corrige em {vuln.get('fixed_in') or '?'} · {vuln.get('cve') or ''}"
+            )
+        st.caption("Inventário: " + ", ".join(f"{d['package']} {d.get('declared') or ''}" for d in deps))
 
 
 def render_changes() -> None:
     """PR/change risk (SPEC-009): score explicável por commit, read-only."""
     st.title("Mudanças")
     st.caption("Risco por commit — blast radius, histórico, tamanho e proveniência (recomendação, não bloqueio)")
+    render_sbom()
     try:
         linhas = query(f"SELECT * FROM {table('ops', 'change_risk')} ORDER BY total_score DESC")
     except Exception:

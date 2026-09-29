@@ -139,20 +139,46 @@ def load_secret_findings(spark: Any, settings: Settings) -> dict[str, list[dict]
     return por_sha
 
 
-def apply_secrets(risk: ChangeRisk, findings: list[dict]) -> ChangeRisk:
-    if not findings:
+def load_dependency_findings(spark: Any, settings: Settings) -> dict[str, list[dict]]:
+    try:
+        registros = store.query(
+            spark,
+            f"SELECT sha, package, cve, severity FROM {settings.table('ops', 'dependency_findings')} "
+            "WHERE sha IS NOT NULL AND sha <> ''",
+        )
+    except Exception:
+        return {}
+    por_sha: dict[str, list[dict]] = {}
+    for registro in registros:
+        por_sha.setdefault(registro["sha"], []).append(registro)
+    return por_sha
+
+
+def _apply_findings(risk: ChangeRisk, contributors: list[str], has_high: bool) -> ChangeRisk:
+    if not contributors:
         return risk
-    contribuidores = tuple(f"segredo: {f['pattern_name']} ({f['severity']})" for f in findings)
-    banda = "alto" if any(f.get("severity") == "alta" for f in findings) else risk.band
-    return replace(risk, band=banda, contributors=risk.contributors + contribuidores)
+    banda = "alto" if has_high else risk.band
+    return replace(risk, band=banda, contributors=risk.contributors + tuple(contributors))
+
+
+def apply_secrets(risk: ChangeRisk, findings: list[dict]) -> ChangeRisk:
+    contribuidores = [f"segredo: {f['pattern_name']} ({f['severity']})" for f in findings]
+    return _apply_findings(risk, contribuidores, any(f.get("severity") == "alta" for f in findings))
+
+
+def apply_dependencies(risk: ChangeRisk, findings: list[dict]) -> ChangeRisk:
+    contribuidores = [f"dependência: {f['package']} {f['cve']} ({f['severity']})" for f in findings]
+    return _apply_findings(risk, contribuidores, any(f.get("severity") == "alta" for f in findings))
 
 
 def build_rows(
     changes: list, sources: tuple[tuple[str, str], ...], edges: tuple, incidents: list[dict],
     weights: ChangeRiskWeights, now: datetime, settings: Settings,
     findings_by_sha: dict[str, list[dict]] | None = None,
+    dep_findings_by_sha: dict[str, list[dict]] | None = None,
 ) -> list[dict]:
     findings_by_sha = findings_by_sha or {}
+    dep_findings_by_sha = dep_findings_by_sha or {}
     assets_por_change = {change.sha: assets_for(change.files, sources) for change in changes}
     changes_at_by_asset: dict[str, list[datetime]] = {}
     for change in changes:
@@ -165,6 +191,7 @@ def build_rows(
         history = history_for(assets, incidents, changes_at_by_asset, weights)
         risco = score_change(change, blast, history, weights)
         risco = apply_secrets(risco, findings_by_sha.get(change.sha, []))
+        risco = apply_dependencies(risco, dep_findings_by_sha.get(change.sha, []))
         linhas.append(risk_row(risco, change, now))
     return linhas
 
@@ -185,8 +212,11 @@ def main(argv: list[str] | None = None) -> None:
     edges = lineage.load_graph(spark, settings)
     incidents = load_incident_assets(spark, settings)
     findings_by_sha = load_secret_findings(spark, settings)
+    dep_findings_by_sha = load_dependency_findings(spark, settings)
 
-    rows = build_rows(changes, sources, edges, incidents, weights, now, settings, findings_by_sha)
+    rows = build_rows(
+        changes, sources, edges, incidents, weights, now, settings, findings_by_sha, dep_findings_by_sha
+    )
     store.replace_rows(spark, settings.table("ops", "change_risk"), rows)
     logger.info("change_risk pontuou %s mudança(s)", len(rows))
 

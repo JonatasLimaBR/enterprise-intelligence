@@ -82,6 +82,7 @@ def test_as_etapas_cobrem_o_ciclo_inteiro_na_ordem_de_dependencia():
         "semantics",
         "correlate",
         "secret_scan",
+        "supply_chain",
         "change_risk",
         "narrate",
         "dispatch",

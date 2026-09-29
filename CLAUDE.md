@@ -588,8 +588,27 @@ Feature 2 do programa da Fase 3. Detector de segredos **read-only** sobre o diff
 | Testes | ✅ **794** (22 novos) · ruff limpo |
 | Publicação/verificação | ⛔ pendente: `--stages secret_scan,change_risk` com a cota liberada |
 
-Arquivo do ciclo: `.claude/sdd/archive/EICT_SECRET_SCAN/SHIPPED_2026-09-28.md` (SDD completo). Restam as
-features 3 (SBOM/supply chain) e 4 (deployment gates, ação L2) da Fase 3.
+Arquivo do ciclo: `.claude/sdd/archive/EICT_SECRET_SCAN/SHIPPED_2026-09-28.md` (SDD completo).
+
+### SBOM e supply chain (feature EICT_SUPPLY_CHAIN — ✅ Shipped em 2026-09-29, não publicado) — Fase 3
+
+Feature 3 do programa da Fase 3. SBOM das dependências + matching de advisories, read-only, alimentando o change risk.
+
+| Item | Estado |
+|------|--------|
+| Motor | ✅ parse `pyproject.toml`(principais+opcionais)/`requirements.txt` via `tomllib`; matcher `lower_bound < fixed_in` por tupla de versão |
+| Catálogo | ✅ `eict-platform/supply_chain/advisories.yaml` (seed ilustrativo pyyaml/requests); fail-safe **continua avaliando** com `DEFAULT_ADVISORIES` |
+| SBOM | ✅ `ops.dependencies` via `GitHubClient.fetch_file` no HEAD do repo monitorado (`workload_repo`/`github_repo`); fetch falho → vazio |
+| Findings | ✅ `ops.dependency_findings`: inventário (`sha` vazio) + por commit (`sha`); só os com `sha` alimentam o score |
+| Integração | ✅ consumo de findings **generalizado** no change_risk (`_apply_findings`; `apply_secrets` mantido + `apply_dependencies`); alta severidade → piso "alto" |
+| Estágio | ✅ `supply_chain` após `secret_scan`, antes do `change_risk` |
+| Console | ✅ vulns no card do change risk + resumo SBOM na visão "Mudanças" |
+| Testes | ✅ **813** (19 novos) · ruff limpo |
+| Publicação/verificação | ⛔ pendente: `--stages supply_chain,change_risk` (requer `github_token`) com a cota liberada |
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_SUPPLY_CHAIN/SHIPPED_2026-09-29.md`. Resta a **feature 4 —
+deployment gates** (ação L2; depende do action gateway, inexistente). **Jev** avaliado como camada de
+recomendação (nunca autoridade determinística); vira feature própria se decidido.
 
 ---
 

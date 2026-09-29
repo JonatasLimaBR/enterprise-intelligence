@@ -33,6 +33,7 @@ class Settings:
     notifications_dir: str = ""
     change_risk_dir: str = ""
     secret_scan_dir: str = ""
+    advisories_dir: str = ""
 
     @property
     def excluded_assets(self) -> tuple[str, ...]:
@@ -75,6 +76,7 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
     parser.add_argument("--notifications-dir", default="")
     parser.add_argument("--change-risk-dir", default="")
     parser.add_argument("--secret-scan-dir", default="")
+    parser.add_argument("--advisories-dir", default="")
     known, _ = parser.parse_known_args(argv)
     return Settings(
         catalog=known.catalog,
@@ -100,4 +102,5 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
         notifications_dir=known.notifications_dir,
         change_risk_dir=known.change_risk_dir,
         secret_scan_dir=known.secret_scan_dir,
+        advisories_dir=known.advisories_dir,
     )

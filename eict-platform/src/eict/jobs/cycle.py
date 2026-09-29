@@ -129,6 +129,7 @@ def cycle_stages(
         quality,
         secret_scan,
         semantics,
+        supply_chain,
     )
 
     contexto = context or CycleContext()
@@ -140,6 +141,7 @@ def cycle_stages(
         ("semantics", lambda: semantics.main(argv)),
         ("correlate", lambda: correlate.main(argv)),
         ("secret_scan", lambda: secret_scan.main(argv)),
+        ("supply_chain", lambda: supply_chain.main(argv)),
         ("change_risk", lambda: change_risk.main(argv)),
         ("narrate", lambda: narrate.main(argv)),
         ("dispatch", lambda: dispatch.main(argv)),
