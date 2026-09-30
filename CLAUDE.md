@@ -25,7 +25,7 @@ Implementado na demo: Python 3.11+, PySpark/Lakeflow, Delta, Databricks Asset Bu
 ├── README.md / MANIFEST.md / GLOSSARY.md
 ├── TRACEABILITY.md / ACCEPTANCE-CATALOG.md
 ├── prd/                    # 13 PRDs (PRD-000 master … PRD-120 Langfuse)
-├── adrs/                   # 21 ADRs (ADR-001 … ADR-021)
+├── adrs/                   # 22 ADRs (ADR-001 … ADR-022)
 ├── specs/                  # 17 SPECs (domínio, eventos, API, RCA, scoring…)
 ├── architecture/           # ARCHITECTURE, DATABRICKS-REFERENCE, PORTALS-OBSERVABILITY
 ├── engineering/            # ENGINEERING-GUIDE, TEST-STRATEGY, CI-CD, PORTALS-LANGFUSE-DELIVERY
