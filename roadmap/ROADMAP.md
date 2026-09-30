@@ -46,7 +46,13 @@ Foundation e MVP passam a incluir shells operacional/administrativo, central de 
 - FinOps avançado;
 - Teams/Slack war room.
 
-## Fase 3 — Code e Security (10–14 semanas)
+## Fase 3 — Code e Security (10–14 semanas) — ✅ completa no nível de decisão no código (2026-09-30)
+
+> Entregue read-only/decisão: PR/change risk (EICT_CHANGE_RISK), secrets no diff (EICT_SECRET_SCAN),
+> SBOM/supply chain (EICT_SUPPLY_CHAIN), deployment gates — decisão + override (EICT_ACTION_GATEWAY) +
+> a camada de recomendação por decisão tipada (EICT_JEV_ADVISOR, ADR-022). **Fora (decisão de segurança
+> própria):** SAST/IaC scanners externos, provenance attestations, o **executor de remediação SPEC-014**
+> (ações L2 destrutivas) e o enforcement físico de CI. Ver `PROJECT-STATUS.md`.
 
 - PR/change risk;
 - SAST/SCA/SBOM/secrets/IaC;
