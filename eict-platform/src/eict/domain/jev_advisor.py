@@ -107,7 +107,10 @@ def to_recommendation(call: AdvisorCall, answer: Answer | None, threshold: float
         return None
     pct = round(answer.confidence * 100)
     rec_id = stable_id("rec", "jev", call.advisor, call.incident_id, str(call.state.get("connector", "")))
-    texto = f"Jev (IA) — {call.advisor}: '{answer.value}' (confiança {pct}%). Recomendação, não decisão."
+    texto = (
+        f"Jev (IA) — {call.advisor}: '{answer.value}' (confiança {pct}%). "
+        "Triagem, não veredito: a confiança não garante acerto; decisão é humana."
+    )
     base = f"Jev advisor '{call.advisor}' · campos: {', '.join(sorted(call.state))}"
     return Recommendation(
         recommendation_id=rec_id,

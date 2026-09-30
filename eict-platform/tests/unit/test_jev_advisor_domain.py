@@ -59,6 +59,7 @@ def test_to_recommendation_acima_do_limiar():
     assert rec.kind == "jev_triage"
     assert rec.evidence_ids == ()          # Jev não é evidência
     assert "Jev (IA)" in rec.text and "82%" in rec.text
+    assert "Triagem, não veredito" in rec.text  # confiança ≠ precisão (ADR-022)
     assert rec.owner_role == "operador"
 
 
