@@ -1,0 +1,5 @@
+# Advisors do Jev (EICT_JEV_ADVISOR). Egress DESLIGADO por padrão: `enabled` vazio = nenhuma chamada.
+# Ligar um advisor ainda exige a secret `jev_api_key` no secret scope. A allow-list de campos é constante
+# no código (domain/jev_advisor.py) — este YAML só liga/desliga e ajusta o limiar, nunca amplia o egress.
+enabled: []          # ex.: [triage, connector, runbook]
+threshold: 0.70      # confiança mínima para virar recomendação

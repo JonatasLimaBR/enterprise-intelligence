@@ -607,8 +607,25 @@ Feature 3 do programa da Fase 3. SBOM das dependências + matching de advisories
 | Publicação/verificação | ⛔ pendente: `--stages supply_chain,change_risk` (requer `github_token`) com a cota liberada |
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_SUPPLY_CHAIN/SHIPPED_2026-09-29.md`. Resta a **feature 4 —
-deployment gates** (ação L2; depende do action gateway, inexistente). **Jev** avaliado como camada de
-recomendação (nunca autoridade determinística); vira feature própria se decidido.
+deployment gates** (ação L2; depende do action gateway, inexistente).
+
+### Jev advisor (feature EICT_JEV_ADVISOR — ✅ Shipped em 2026-09-30, não publicado) — Fase 3 (transversal)
+
+Integra o **Jev** (modelo de decisão tipada da TypeSafe) como **camada de recomendação read-only** — recomenda, nunca autoriza.
+
+| Item | Estado |
+|------|--------|
+| Estágio | ✅ `jev_advisor` após `correlate`; grava em `ops.recommendations` (review humano); dedup por id estável |
+| Advisors | ✅ 3 zonas cinzentas: triagem (severidade média), conector (degradado), runbook (empate ≥2 candidatos) |
+| Egress | ✅ **desligado por padrão** — exige `jev/advisors.yaml` com advisor habilitado **e** `jev_api_key`; sem token o adapter nem chama |
+| Allow-list | ✅ **em código** (`*_FIELDS`), não widenável por YAML; teste `set(state)==set(FIELDS)`; nunca PII/segredo/evidência crua |
+| Guardrails | ✅ limiar 0,70; falha/baixa confiança → sem recomendação; `evidence_ids` vazio (Jev não é evidência); nada executado |
+| Adapter | ✅ `adapters/jev.py` (requests, sem SDK novo; fake p/ teste); chamada real diferida |
+| Testes | ✅ **832** (19 novos) · ruff limpo |
+| Publicação/verificação | ⛔ pendente: `--stages jev_advisor` com `jev_api_key` + advisor habilitado + cota; confirmar contrato real da API |
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_JEV_ADVISOR/SHIPPED_2026-09-30.md`. Avaliação do Jev vs. os
+princípios registrada ali (recomenda, nunca autoridade determinística; sem PII/segredo).
 
 ---
 
