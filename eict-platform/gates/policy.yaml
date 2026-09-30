@@ -1,0 +1,9 @@
+# Policy de gate de mudança (EICT_ACTION_GATEWAY). Mapeia SPEC-009 → desfecho.
+# Inválida/ausente → policy-padrão embutida (mesmos valores abaixo). Precedência fixa no código:
+# segredo alta → dependência alta → change risk alto → default (primeira que casa).
+# Decide e registra; NÃO bloqueia CI (enforcement diferido). Override é autorizado e auditado no console.
+outcomes:
+  secret_high: bloqueado        # segredo de alta severidade no diff (SPEC-009: secret verificado → bloquear)
+  dependency_high: bloqueado    # dependência vulnerável alta (SPEC-009: CVE crítica → bloquear)
+  band_alto: requer_aprovacao   # change risk alto (SPEC-009: alto risco → aprovação)
+  default: permite              # band médio/baixo sem finding alta

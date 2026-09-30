@@ -53,6 +53,8 @@ resources:
           default: ${workspace.file_path}/supply_chain
         - name: jev_dir
           default: ${workspace.file_path}/jev
+        - name: gates_dir
+          default: ${workspace.file_path}/gates
         # Etapas a rodar (lista separada por vírgula ou "all") e se o pipeline roda mesmo sem
         # observação nova. Usados pela janela de verificação e pela demo para poupar cota.
         - name: stages
@@ -96,6 +98,7 @@ resources:
               - "--secret-scan-dir={{job.parameters.secret_scan_dir}}"
               - "--advisories-dir={{job.parameters.advisories_dir}}"
               - "--jev-dir={{job.parameters.jev_dir}}"
+              - "--gates-dir={{job.parameters.gates_dir}}"
               - "--stages={{job.parameters.stages}}"
               - "--force-pipeline={{job.parameters.force_pipeline}}"
               - "--pipeline-id=${resources.pipelines.medallion.id}"

@@ -364,6 +364,24 @@ TABLES: dict[tuple[str, str], str] = {
         computed_at TIMESTAMP,
         policy_version STRING
     """,
+    ("ops", "gate_decisions"): """
+        sha STRING NOT NULL,
+        outcome STRING,
+        rule STRING,
+        reason STRING,
+        computed_at TIMESTAMP,
+        policy_version STRING
+    """,
+    ("ops", "gate_overrides"): """
+        override_id STRING NOT NULL,
+        sha STRING,
+        decision STRING,
+        reason STRING,
+        ticket STRING,
+        reviewer STRING,
+        created_at TIMESTAMP,
+        expires_at TIMESTAMP
+    """,
     ("ops", "dependencies"): """
         package STRING NOT NULL,
         declared STRING,

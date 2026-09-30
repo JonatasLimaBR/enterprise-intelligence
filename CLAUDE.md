@@ -630,6 +630,25 @@ princípios registrada em **ADR-022** (recomenda, nunca autoridade determinísti
 diz explicitamente "Triagem, não veredito". Pendência: promover a taxa de aceitação (G10) a detector de
 descalibração no resumo executivo.
 
+### Deployment gates / action gateway (feature EICT_ACTION_GATEWAY — ✅ Shipped em 2026-09-30, não publicado) — Fase 3 (feature 4)
+
+Fecha o programa Code e Security no **nível de decisão**: policy + gate + override + auditoria. Decide e registra; **não executa nem bloqueia CI**.
+
+| Item | Estado |
+|------|--------|
+| Policy | ✅ `eict-platform/gates/policy.yaml` versionada: segredo/dep alta → `bloqueado`; band alto → `requer_aprovacao`; resto → `permite`; precedência fixa citando SPEC-009; fail-safe conservador |
+| Estágio | ✅ `gates` após `change_risk`; lê change_risk + findings; grava `ops.gate_decisions` (`replace_rows`) |
+| Override | ✅ no App, ação RBAC `override_gate` (engenheiro_dados, data_steward), motivo obrigatório, escopo=sha, **expira 7 d**, ticket → `ops.gate_overrides`; auditado (hash chain) |
+| Gate efetivo | ✅ `app/gate_actions.effective_outcome` (o App não importa `eict`): decisão da policy salvo override não expirado; expirado reabre |
+| Console | ✅ visão "Gates" + gate no card do change risk |
+| Escopo | ✅ **decisão** apenas; executor de remediação SPEC-014 (lease/fencing/rollback/execução) e enforcement físico de CI **fora** (futuros) |
+| Testes | ✅ **850** (18 novos) · ruff limpo |
+| Publicação/verificação | ⛔ pendente: `--stages gates` + override no console + cota liberada |
+
+Arquivo do ciclo: `.claude/sdd/archive/EICT_ACTION_GATEWAY/SHIPPED_2026-09-30.md`. **Programa Code e Security
+(Fase 3) completo no nível de decisão** — 4 features + Jev + gateway; resta o **executor SPEC-014** (ação L2
+destrutiva) e o **enforcement real de CI**, ambos decisão de segurança própria.
+
 ---
 
 ## Agentes recomendados (agentcode)

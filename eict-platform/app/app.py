@@ -6,6 +6,7 @@ import os
 import uuid
 from datetime import UTC, datetime
 
+import gate_actions
 import streamlit as st
 from acceptance import IDENTITY_HEADER, refusal, statements
 from access import (
@@ -16,6 +17,7 @@ from access import (
     FOLLOW_RUNBOOK,
     IMPLEMENT_SAVING,
     MANAGE_PROBLEM,
+    OVERRIDE_GATE,
     REVIEW_HYPOTHESIS,
     REVIEW_RECOMMENDATION,
     VIEW_AUDIT,
@@ -983,6 +985,7 @@ def render_change_risk(risco: dict) -> None:
                 f"{vuln['severity']} · {vuln['package']} {vuln.get('declared') or ''} "
                 f"→ corrige em {vuln.get('fixed_in') or '?'} · {vuln.get('cve') or ''}"
             )
+    render_gate_for(risco["sha"])
 
 
 def load_dependency_findings(sha: str) -> list[dict]:
@@ -1012,6 +1015,63 @@ def render_sbom() -> None:
                 f"→ corrige em {vuln.get('fixed_in') or '?'} · {vuln.get('cve') or ''}"
             )
         st.caption("Inventário: " + ", ".join(f"{d['package']} {d.get('declared') or ''}" for d in deps))
+
+
+ESTADO_GATE = {"permite": "🟢 permite", "requer_aprovacao": "🟡 requer aprovação", "bloqueado": "🔴 bloqueado"}
+
+
+def load_gate(sha: str):
+    if not sha:
+        return None, []
+    try:
+        decisao = query(f"SELECT * FROM {table('ops', 'gate_decisions')} WHERE sha = :sha LIMIT 1", {"sha": sha})
+        overrides = query(
+            f"SELECT * FROM {table('ops', 'gate_overrides')} WHERE sha = :sha ORDER BY created_at DESC",
+            {"sha": sha},
+        )
+    except Exception:
+        return None, []
+    return (decisao[0] if decisao else None), overrides
+
+
+def render_gate_for(sha: str) -> None:
+    decisao, overrides = load_gate(sha)
+    if decisao is None:
+        return
+    efetivo = gate_actions.effective_outcome(decisao["outcome"], overrides, datetime.now(UTC))
+    st.markdown(f"**Gate: {ESTADO_GATE.get(efetivo, efetivo)}** — regra: {decisao.get('rule')}")
+    st.caption(decisao.get("reason") or "")
+    if efetivo != decisao["outcome"]:
+        st.caption(f"policy dizia `{decisao['outcome']}`; liberado por override não expirado")
+    liberavel = decisao["outcome"] != gate_actions.PERMITE and efetivo != gate_actions.PERMITE
+    if liberavel and can(directory(), usuario, OVERRIDE_GATE):
+        motivo = st.text_input("Motivo (obrigatório)", key=f"gate-motivo-{sha}")
+        ticket = st.text_input("Ticket", key=f"gate-ticket-{sha}")
+        if st.button("Liberar gate (7 dias)", key=f"gate-btn-{sha}") and motivo.strip():
+            stmt, params = gate_actions.override_statement(
+                sha, gate_actions.APROVADO, motivo.strip(), ticket, usuario, datetime.now(UTC), table
+            )
+            if guarded(OVERRIDE_GATE, sha, functools.partial(execute, stmt, params)):
+                st.rerun()
+
+
+def render_gates() -> None:
+    """Deployment gates (SPEC-009): decisão por commit + override autorizado. Read-only (sem bloquear CI)."""
+    st.title("Gates")
+    st.caption("Decisão por mudança — permite / requer aprovação / bloqueado (registra, não bloqueia CI)")
+    try:
+        linhas = query(f"SELECT * FROM {table('ops', 'gate_decisions')} ORDER BY computed_at DESC")
+    except Exception:
+        st.info("Os gates são calculados pelo ciclo; aguardando o primeiro após a publicação.")
+        return
+    if not linhas:
+        st.info("Nenhum gate calculado ainda.")
+        return
+    for decisao in linhas:
+        _, overrides = load_gate(decisao["sha"])
+        efetivo = gate_actions.effective_outcome(decisao["outcome"], overrides, datetime.now(UTC))
+        with st.expander(f"{ESTADO_GATE.get(efetivo, efetivo)} · {decisao['sha'][:8]} · {decisao.get('rule')}"):
+            render_gate_for(decisao["sha"])
 
 
 def render_changes() -> None:
@@ -1076,7 +1136,8 @@ if directory().error:
     st.sidebar.warning(directory().error)
 render_connector_health()
 visoes = [
-    "Resumo executivo", "Incidentes", "Problemas", "Runbooks", "Custos", "Economia", "Mudanças", "Comunicação",
+    "Resumo executivo", "Incidentes", "Problemas", "Runbooks", "Custos", "Economia",
+    "Mudanças", "Gates", "Comunicação",
 ] + (["Auditoria"] if can(directory(), usuario, VIEW_AUDIT) else [])
 visao = st.sidebar.radio("Visão", visoes)
 if visao == "Problemas":
@@ -1093,6 +1154,9 @@ if visao == "Economia":
     st.stop()
 if visao == "Mudanças":
     render_changes()
+    st.stop()
+if visao == "Gates":
+    render_gates()
     st.stop()
 if visao == "Comunicação":
     render_communications()

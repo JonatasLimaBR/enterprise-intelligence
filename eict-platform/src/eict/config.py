@@ -35,6 +35,7 @@ class Settings:
     secret_scan_dir: str = ""
     advisories_dir: str = ""
     jev_dir: str = ""
+    gates_dir: str = ""
 
     @property
     def excluded_assets(self) -> tuple[str, ...]:
@@ -79,6 +80,7 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
     parser.add_argument("--secret-scan-dir", default="")
     parser.add_argument("--advisories-dir", default="")
     parser.add_argument("--jev-dir", default="")
+    parser.add_argument("--gates-dir", default="")
     known, _ = parser.parse_known_args(argv)
     return Settings(
         catalog=known.catalog,
@@ -106,4 +108,5 @@ def parse_settings(argv: list[str] | None = None) -> Settings:
         secret_scan_dir=known.secret_scan_dir,
         advisories_dir=known.advisories_dir,
         jev_dir=known.jev_dir,
+        gates_dir=known.gates_dir,
     )

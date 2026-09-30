@@ -85,6 +85,7 @@ def test_as_etapas_cobrem_o_ciclo_inteiro_na_ordem_de_dependencia():
         "secret_scan",
         "supply_chain",
         "change_risk",
+        "gates",
         "narrate",
         "dispatch",
         "notify",

@@ -31,6 +31,7 @@ FOLLOW_RUNBOOK = "follow_runbook"
 APPROVE_SAVING = "approve_saving"
 DISCARD_SAVING = "discard_saving"
 IMPLEMENT_SAVING = "implement_saving"
+OVERRIDE_GATE = "override_gate"
 
 PERMISSIONS: dict[str, frozenset[str]] = {
     REVIEW_HYPOTHESIS: frozenset({OPERADOR, ENGENHEIRO_DADOS}),
@@ -43,6 +44,8 @@ PERMISSIONS: dict[str, frozenset[str]] = {
     APPROVE_SAVING: frozenset({FINOPS}),
     DISCARD_SAVING: frozenset({FINOPS}),
     IMPLEMENT_SAVING: frozenset({ENGENHEIRO_DADOS}),
+    # Liberar um gate de mudança é decisão de engenharia/governança, autorizada e auditada.
+    OVERRIDE_GATE: frozenset({ENGENHEIRO_DADOS, DATA_STEWARD}),
     # Segregação: quem audita lê a trilha e não age; quem age não lê a trilha.
     VIEW_AUDIT: frozenset({DATA_STEWARD, AUDITOR}),
 }
