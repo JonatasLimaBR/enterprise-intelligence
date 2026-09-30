@@ -625,7 +625,10 @@ Integra o **Jev** (modelo de decisão tipada da TypeSafe) como **camada de recom
 | Publicação/verificação | ⛔ pendente: `--stages jev_advisor` com `jev_api_key` + advisor habilitado + cota; confirmar contrato real da API |
 
 Arquivo do ciclo: `.claude/sdd/archive/EICT_JEV_ADVISOR/SHIPPED_2026-09-30.md`. Avaliação do Jev vs. os
-princípios registrada ali (recomenda, nunca autoridade determinística; sem PII/segredo).
+princípios registrada em **ADR-022** (recomenda, nunca autoridade determinística; egress off por padrão;
+**confiança é triagem, não veredito** — confiança ≠ precisão). Refinamento pós-ship: o texto da recomendação
+diz explicitamente "Triagem, não veredito". Pendência: promover a taxa de aceitação (G10) a detector de
+descalibração no resumo executivo.
 
 ---
 
